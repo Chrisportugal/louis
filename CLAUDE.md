@@ -1,8 +1,8 @@
-# Yield Agent — HyperEVM
+# Louis — HyperEVM Yield Vault
 
 ## What this is
-An AI-powered yield allocation agent that monitors lending protocols on HyperEVM
-and deploys capital to the best risk-adjusted yield opportunities.
+Louis is an AI-powered yield allocation vault on HyperEVM that deploys capital
+to the best risk-adjusted lending opportunities across protocols.
 
 ## Architecture
 - **Monitor**: Fetches live APY data from lending protocols (on-chain + APIs)

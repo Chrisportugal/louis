@@ -1,5 +1,5 @@
 {
-  "name": "yield-agent",
+  "name": "louis",
   "version": "1.0.0",
   "description": "AI yield allocation agent for HyperEVM lending protocols",
   "type": "module",
