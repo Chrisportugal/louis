@@ -2,4 +2,7 @@ node_modules/
 dist/
 contracts/out/
 contracts/cache/
+cache/
+frontend/node_modules/
+frontend/dist/
 .env

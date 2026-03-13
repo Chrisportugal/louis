@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Louis Docs - Yield Agent on HyperEVM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0b0f;
+      --bg-card: #12131a;
+      --bg-input: #1a1b24;
+      --border: #1e2030;
+      --text: #8b8fa3;
+      --text-bright: #e4e6f0;
+      --text-dim: #4a4d62;
+      --accent: #3b82f6;
+      --green: #22c55e;
+      --font: 'Inter', system-ui, sans-serif;
+    }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Nav */
+    .nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,11,15,0.9); backdrop-filter: blur(12px);
+    }
+    .nav-left { display: flex; align-items: center; gap: 10px; }
+    .logo { font-size: 22px; font-weight: 700; color: var(--text-bright); }
+    .nav-tag { font-size: 11px; font-weight: 500; color: var(--accent);
+      background: rgba(59,130,246,0.15); padding: 3px 8px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: 0.5px; }
+    .nav a { color: var(--text); text-decoration: none; font-size: 14px;
+      font-weight: 500; transition: color 0.2s; }
+    .nav a:hover { color: var(--text-bright); }
+    .nav-right { display: flex; gap: 20px; align-items: center; }
+    .btn-app { background: var(--accent); color: white; padding: 8px 20px;
+      border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; }
+
+    /* Layout */
+    .layout { display: flex; max-width: 1200px; margin: 0 auto; min-height: calc(100vh - 57px); }
+    .sidebar {
+      width: 240px; padding: 32px 24px; border-right: 1px solid var(--border);
+      position: sticky; top: 57px; height: calc(100vh - 57px); overflow-y: auto;
+    }
+    .sidebar-section { margin-bottom: 24px; }
+    .sidebar-title { font-size: 11px; font-weight: 600; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .sidebar a {
+      display: block; padding: 6px 10px; border-radius: 6px;
+      color: var(--text); text-decoration: none; font-size: 14px;
+      transition: all 0.15s;
+    }
+    .sidebar a:hover, .sidebar a.active {
+      color: var(--text-bright); background: var(--bg-input);
+    }
+    .content { flex: 1; padding: 40px 48px; max-width: 800px; }
+    h1 { font-size: 32px; font-weight: 700; color: var(--text-bright);
+      letter-spacing: -0.5px; margin-bottom: 12px; }
+    h2 { font-size: 22px; font-weight: 600; color: var(--text-bright);
+      margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 17px; font-weight: 600; color: var(--text-bright); margin: 24px 0 8px; }
+    p { margin-bottom: 16px; }
+    ul, ol { margin-bottom: 16px; padding-left: 24px; }
+    li { margin-bottom: 6px; }
+    code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: var(--bg-input); padding: 2px 6px; border-radius: 4px;
+      font-size: 13px; color: var(--accent);
+    }
+    pre {
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 20px; margin-bottom: 16px;
+      overflow-x: auto; font-size: 13px; line-height: 1.6;
+    }
+    pre code { background: none; padding: 0; color: var(--text-bright); }
+    .callout {
+      background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 10px; padding: 16px 20px; margin-bottom: 16px;
+    }
+    .callout-green {
+      background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2);
+    }
+    .badge {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 3px 8px; border-radius: 4px; margin-right: 6px;
+    }
+    .badge-aave { background: rgba(176,75,248,0.15); color: #b04bf8; }
+    .badge-erc4626 { background: rgba(59,130,246,0.15); color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border);
+      color: var(--text-dim); font-size: 12px; text-transform: uppercase;
+      letter-spacing: 0.5px; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    a { color: var(--accent); }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .content { padding: 24px 16px; }
+      .nav { padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-left">
+    <span class="logo">Louis</span>
+    <span class="nav-tag">Docs</span>
+  </div>
+  <div class="nav-right">
+    <a href="https://github.com/Chrisportugal/louis" target="_blank">GitHub</a>
+    <a href="/" class="btn-app">Launch App</a>
+  </div>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Getting Started</div>
+      <a href="#overview" class="active">Overview</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#protocols">Protocols</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Smart Contracts</div>
+      <a href="#vault">YieldVault</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#security">Security</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Developers</div>
+      <a href="#deployment">Deployment</a>
+      <a href="#api">Contract API</a>
+      <a href="#addresses">Addresses</a>
+    </div>
+  </aside>
+
+  <main class="content">
+    <h1 id="overview">Louis - Yield Agent on HyperEVM</h1>
+    <p>
+      Louis is an AI-powered yield allocation vault on HyperEVM that automatically
+      deploys capital to the highest-yielding lending protocols. Deposit your stablecoins,
+      and the AI agent handles the rest.
+    </p>
+
+    <div class="callout-green callout">
+      <strong>Why Louis?</strong> Instead of manually comparing APYs across protocols,
+      Louis monitors rates in real-time and rebalances your deposits to capture the
+      best risk-adjusted yields on HyperEVM.
+    </div>
+
+    <h2 id="how-it-works">How It Works</h2>
+    <ol>
+      <li><strong>Deposit</strong> - You deposit USDHL (or other supported stablecoins) into the Louis vault. You receive <code>lUSDHL</code> share tokens representing your position.</li>
+      <li><strong>AI Monitors</strong> - The AI agent continuously monitors APYs across all integrated lending protocols on HyperEVM.</li>
+      <li><strong>Auto-Reallocate</strong> - When a better opportunity is found, the agent calls <code>reallocate()</code> to move funds to the higher-yielding protocol.</li>
+      <li><strong>Withdraw Anytime</strong> - Redeem your <code>lUSDHL</code> shares at any time. The vault automatically pulls funds from protocols to fulfil your withdrawal.</li>
+    </ol>
+
+    <h2 id="protocols">Integrated Protocols</h2>
+    <p>Louis routes deposits across both Aave V3 forks and ERC-4626 MetaMorpho vaults:</p>
+
+    <table>
+      <thead>
+        <tr><th>Protocol</th><th>Type</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>HyperLend</strong></td>
+          <td><span class="badge badge-aave">Aave V3</span></td>
+          <td>Largest Aave V3 fork on HyperEVM. Battle-tested lending markets.</td>
+        </tr>
+        <tr>
+          <td><strong>HypurrFi</strong></td>
+          <td><span class="badge badge-aave">Aave V3</span></td>
+          <td>Second Aave V3 fork, competitive rates on stablecoin lending.</td>
+        </tr>
+        <tr>
+          <td><strong>Felix USDhl (Frontier)</strong></td>
+          <td><span class="badge badge-erc4626">ERC-4626</span></td>
+          <td>MetaMorpho vault on Morpho Blue. Often the highest APY.</td>
+        </tr>
+        <tr>
+          <td><strong>Felix USDhl</strong></td>
+          <td><span class="badge badge-erc4626">ERC-4626</span></td>
+          <td>Conservative MetaMorpho vault with broader market exposure.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="vault">YieldVault Contract</h2>
+    <p>
+      The core contract is an <a href="https://eips.ethereum.org/EIPS/eip-4626" target="_blank">ERC-4626</a>
+      tokenized vault built on OpenZeppelin v5. It supports two protocol types:
+    </p>
+
+    <h3>Protocol Types</h3>
+    <ul>
+      <li><strong>AAVE_V3</strong> - Interacts via <code>IPool.supply()</code> and <code>IPool.withdraw()</code>. Tracks deposits via aToken balances (1:1 with underlying).</li>
+      <li><strong>ERC4626_VAULT</strong> - Interacts via <code>IERC4626.deposit()</code> and <code>IERC4626.withdraw()</code>. Tracks deposits via <code>convertToAssets(shares)</code> for accurate accounting with variable share prices.</li>
+    </ul>
+
+    <h3>Key Functions</h3>
+    <pre><code>// User Functions (ERC-4626 standard)
+deposit(uint256 assets, address receiver) -> uint256 shares
+withdraw(uint256 assets, address receiver, address owner) -> uint256 shares
+redeem(uint256 shares, address receiver, address owner) -> uint256 assets
+
+// AI Agent Functions
+reallocate(uint256 from, uint256 to, uint256 amount)
+setActiveIndex(uint256 index)
+
+// Admin Functions
+addProtocol(address pool, address aToken)  // Aave V3
+addVault(address vault4626)                // ERC-4626
+toggleProtocol(uint256 index, bool active)
+setAllocator(address newAllocator)
+emergencyPull(uint256 index)
+
+// View Functions
+totalAssets() -> uint256
+protocolBalance(uint256 index) -> uint256
+protocolCount() -> uint256</code></pre>
+
+    <h2 id="architecture">Architecture</h2>
+    <div class="callout">
+      <strong>Stack:</strong> Solidity (Foundry) + TypeScript (Viem) + React (Vite + wagmi)
+    </div>
+
+    <h3>Smart Contracts</h3>
+    <ul>
+      <li><code>YieldVault.sol</code> - ERC-4626 vault with multi-protocol support</li>
+      <li>Built on OpenZeppelin v5 (ERC4626, Ownable, SafeERC20)</li>
+      <li>Compiled with Solidity 0.8.24</li>
+    </ul>
+
+    <h3>Off-Chain Agent</h3>
+    <ul>
+      <li><strong>Monitor</strong> - Fetches live APYs from on-chain data + Morpho GraphQL API + DefiLlama</li>
+      <li><strong>Ranker</strong> - Compares risk-adjusted yields across all protocols</li>
+      <li><strong>Executor</strong> - Calls <code>reallocate()</code> via Viem transactions when a better opportunity is found</li>
+    </ul>
+
+    <h2 id="security">Security</h2>
+    <ul>
+      <li><strong>Non-custodial</strong> - Users can always withdraw. The vault never locks funds.</li>
+      <li><strong>Emergency pull</strong> - Owner can call <code>emergencyPull(index)</code> to instantly pull all funds from any protocol back to idle.</li>
+      <li><strong>Role separation</strong> - Owner manages protocols and emergencies. Allocator (AI agent) can only reallocate between existing protocols, not add/remove them.</li>
+      <li><strong>Battle-tested dependencies</strong> - Built on OpenZeppelin v5.6.1 and ERC-4626 standard.</li>
+      <li><strong>Comprehensive tests</strong> - 34 test cases covering deposits, withdrawals, reallocations, interest accrual, cross-protocol operations, and edge cases.</li>
+    </ul>
+
+    <h2 id="deployment">Deployment</h2>
+    <pre><code># Install dependencies
+npm install
+forge install
+
+# Run tests
+forge test -v
+
+# Deploy to HyperEVM
+export PRIVATE_KEY=your_private_key_here
+forge script contracts/script/Deploy.s.sol \
+  --rpc-url https://rpc.hyperliquid.xyz/evm \
+  --broadcast
+
+# Run the yield monitor
+npx tsx src/monitor.ts
+
+# Start the frontend
+cd frontend && npm run dev</code></pre>
+
+    <h2 id="api">Contract API Reference</h2>
+
+    <h3>deposit(assets, receiver)</h3>
+    <p>Deposits <code>assets</code> amount of underlying tokens and mints vault shares to <code>receiver</code>. The deposited tokens are immediately supplied to the active protocol.</p>
+
+    <h3>withdraw(assets, receiver, owner)</h3>
+    <p>Burns shares from <code>owner</code> and sends <code>assets</code> underlying tokens to <code>receiver</code>. Automatically pulls from protocols if the vault has insufficient idle balance.</p>
+
+    <h3>reallocate(from, to, amount)</h3>
+    <p>Moves <code>amount</code> of underlying tokens from protocol at index <code>from</code> to protocol at index <code>to</code>. Only callable by the allocator (AI agent) or owner.</p>
+
+    <h2 id="addresses">Contract Addresses</h2>
+    <table>
+      <thead><tr><th>Contract</th><th>Address</th></tr></thead>
+      <tbody>
+        <tr><td>USDHL Token</td><td><code>0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5</code></td></tr>
+        <tr><td>HyperLend Pool</td><td><code>0x00A89d7a5A02160f20150EbEA7a2b5E4879A1A8b</code></td></tr>
+        <tr><td>HypurrFi Pool</td><td><code>0xceCcE0EB9DD2Ef7996e01e25DD70e461F918A14b</code></td></tr>
+        <tr><td>Felix USDhl Frontier</td><td><code>0x66c71204B70aE27BE6dC3eb41F9aF5868E68fDb6</code></td></tr>
+        <tr><td>Felix USDhl</td><td><code>0x9c59a9389D8f72DE2CdAf1126F36EA4790E2275e</code></td></tr>
+        <tr><td>Louis Vault</td><td><em>Deploy to get address</em></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout" style="margin-top: 40px;">
+      <strong>HyperEVM</strong> - Chain ID: 999 | RPC: <code>https://rpc.hyperliquid.xyz/evm</code>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

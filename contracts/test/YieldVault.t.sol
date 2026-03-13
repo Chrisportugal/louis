@@ -69,9 +69,63 @@ contract MockPool {
 
     /// @dev Simulate interest accrual by minting extra aTokens to a user
     function accrueInterest(address user, uint256 extra) external {
-        // Mint underlying to pool so it can pay out later
-        // (In tests we pre-fund the pool)
         aToken.mint(user, extra);
+    }
+}
+
+/// @dev Mock ERC-4626 vault (Felix / MetaMorpho style)
+contract MockVault4626 is ERC20 {
+    IERC20 public immutable underlying;
+    uint256 public rate; // Multiplier in 1e18 (1e18 = 1:1)
+
+    constructor(IERC20 underlying_) ERC20("Mock Vault", "mVLT") {
+        underlying = underlying_;
+        rate = 1e18; // Start at 1:1
+    }
+
+    function asset() external view returns (address) {
+        return address(underlying);
+    }
+
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+        shares = (assets * 1e18) / rate;
+        underlying.transferFrom(msg.sender, address(this), assets);
+        _mint(receiver, shares);
+    }
+
+    function withdraw(uint256 assets, address receiver, address owner_) external returns (uint256 shares) {
+        shares = (assets * 1e18 + rate - 1) / rate; // Round up shares needed
+        _burn(owner_, shares);
+        underlying.transfer(receiver, assets);
+    }
+
+    function redeem(uint256 shares, address receiver, address owner_) external returns (uint256 assets) {
+        assets = convertToAssets(shares);
+        _burn(owner_, shares);
+        underlying.transfer(receiver, assets);
+    }
+
+    function convertToAssets(uint256 shares) public view returns (uint256) {
+        return (shares * rate) / 1e18;
+    }
+
+    function maxWithdraw(address owner_) external view returns (uint256) {
+        return convertToAssets(balanceOf(owner_));
+    }
+
+    /// @dev Simulate yield by increasing the rate (share price goes up)
+    function setRate(uint256 newRate) external {
+        rate = newRate;
+    }
+
+    /// @dev Simulate interest — increase rate so existing shares are worth more
+    function accrueInterest(uint256 extraAssets) external {
+        // Mint extra underlying to vault so it can pay out
+        // Rate goes up: totalAssets increases but totalShares stays the same
+        uint256 totalShares = totalSupply();
+        if (totalShares == 0) return;
+        uint256 currentAssets = (totalShares * rate) / 1e18;
+        rate = ((currentAssets + extraAssets) * 1e18) / totalShares;
     }
 }
 
@@ -83,6 +137,7 @@ contract YieldVaultTest is Test {
     MockToken token;
     MockPool pool1;
     MockPool pool2;
+    MockVault4626 felix;
     YieldVault vault;
 
     address owner = address(this);
@@ -98,9 +153,13 @@ contract YieldVaultTest is Test {
         pool1 = new MockPool(IERC20(address(token)));
         pool2 = new MockPool(IERC20(address(token)));
 
+        // Deploy mock ERC-4626 vault (Felix)
+        felix = new MockVault4626(IERC20(address(token)));
+
         // Fund pools with tokens so they can pay withdrawals
         token.mint(address(pool1), 10_000_000e6);
         token.mint(address(pool2), 10_000_000e6);
+        token.mint(address(felix), 10_000_000e6);
 
         // Deploy the yield vault
         vault = new YieldVault(
@@ -111,9 +170,12 @@ contract YieldVaultTest is Test {
             allocator
         );
 
-        // Register both protocols
+        // Register Aave V3 protocols
         vault.addProtocol(address(pool1), address(pool1.aToken()));
         vault.addProtocol(address(pool2), address(pool2.aToken()));
+
+        // Register ERC-4626 vault (Felix)
+        vault.addVault(address(felix));
 
         // Fund users
         token.mint(user, 10_000e6);
@@ -126,7 +188,7 @@ contract YieldVaultTest is Test {
         token.approve(address(vault), type(uint256).max);
     }
 
-    // ─── Deposit Tests ───
+    // ─── Deposit Tests (Aave V3) ───
 
     function test_deposit_mints_shares() public {
         vm.prank(user);
@@ -142,10 +204,10 @@ contract YieldVaultTest is Test {
 
         assertEq(vault.protocolBalance(0), 100e6, "Pool1 should have 100");
         assertEq(vault.protocolBalance(1), 0, "Pool2 should have 0");
+        assertEq(vault.protocolBalance(2), 0, "Felix should have 0");
     }
 
     function test_deposit_to_second_protocol() public {
-        // Switch active to pool2
         vm.prank(allocator);
         vault.setActiveIndex(1);
 
@@ -154,6 +216,22 @@ contract YieldVaultTest is Test {
 
         assertEq(vault.protocolBalance(0), 0, "Pool1 should have 0");
         assertEq(vault.protocolBalance(1), 100e6, "Pool2 should have 100");
+    }
+
+    // ─── Deposit Tests (ERC-4626 / Felix) ───
+
+    function test_deposit_to_felix_vault() public {
+        // Switch active to Felix (index 2)
+        vm.prank(allocator);
+        vault.setActiveIndex(2);
+
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        assertEq(vault.protocolBalance(0), 0, "Pool1 should have 0");
+        assertEq(vault.protocolBalance(1), 0, "Pool2 should have 0");
+        assertEq(vault.protocolBalance(2), 100e6, "Felix should have 100");
+        assertEq(vault.totalAssets(), 100e6, "Total should be 100");
     }
 
     // ─── Withdraw Tests ───
@@ -198,6 +276,39 @@ contract YieldVaultTest is Test {
         assertEq(token.balanceOf(user), 9_980e6, "User gets 80 back");
     }
 
+    function test_withdraw_from_felix_vault() public {
+        // Deposit to Felix
+        vm.prank(allocator);
+        vault.setActiveIndex(2);
+
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        // Withdraw half
+        vm.prank(user);
+        vault.withdraw(50e6, user, user);
+
+        assertEq(vault.protocolBalance(2), 50e6, "Felix should have 50 left");
+        assertEq(token.balanceOf(user), 9_950e6, "User gets 50 back");
+    }
+
+    function test_withdraw_across_aave_and_felix() public {
+        // Deposit 100 to pool1
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        // Reallocate 60 to Felix
+        vm.prank(allocator);
+        vault.reallocate(0, 2, 60e6);
+
+        // Withdraw 80 — needs to pull from pool1 (40) + Felix (40)
+        vm.prank(user);
+        vault.withdraw(80e6, user, user);
+
+        assertEq(vault.totalAssets(), 20e6, "Should have 20 left");
+        assertEq(token.balanceOf(user), 9_980e6, "User gets 80 back");
+    }
+
     // ─── Reallocate Tests ───
 
     function test_reallocate() public {
@@ -209,6 +320,36 @@ contract YieldVaultTest is Test {
 
         assertEq(vault.protocolBalance(0), 40e6, "Pool1 should have 40");
         assertEq(vault.protocolBalance(1), 60e6, "Pool2 should have 60");
+        assertEq(vault.totalAssets(), 100e6, "Total unchanged");
+    }
+
+    function test_reallocate_aave_to_felix() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        // Move 60 from pool1 to Felix
+        vm.prank(allocator);
+        vault.reallocate(0, 2, 60e6);
+
+        assertEq(vault.protocolBalance(0), 40e6, "Pool1 should have 40");
+        assertEq(vault.protocolBalance(2), 60e6, "Felix should have 60");
+        assertEq(vault.totalAssets(), 100e6, "Total unchanged");
+    }
+
+    function test_reallocate_felix_to_aave() public {
+        // Deposit to Felix
+        vm.prank(allocator);
+        vault.setActiveIndex(2);
+
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        // Move 40 from Felix to pool1
+        vm.prank(allocator);
+        vault.reallocate(2, 0, 40e6);
+
+        assertEq(vault.protocolBalance(0), 40e6, "Pool1 should have 40");
+        assertEq(vault.protocolBalance(2), 60e6, "Felix should have 60");
         assertEq(vault.totalAssets(), 100e6, "Total unchanged");
     }
 
@@ -236,7 +377,6 @@ contract YieldVaultTest is Test {
         vm.prank(user);
         vault.deposit(100e6, user);
 
-        // Owner should also be able to reallocate
         vault.reallocate(0, 1, 50e6);
 
         assertEq(vault.protocolBalance(0), 50e6);
@@ -256,15 +396,45 @@ contract YieldVaultTest is Test {
         assertEq(vault.totalAssets(), 100e6);
     }
 
+    function test_totalAssets_includes_felix() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        // Spread across all three
+        vm.prank(allocator);
+        vault.reallocate(0, 1, 30e6);
+        vm.prank(allocator);
+        vault.reallocate(0, 2, 20e6);
+
+        // 50 in pool1 + 30 in pool2 + 20 in Felix = 100
+        assertEq(vault.totalAssets(), 100e6);
+    }
+
     function test_interest_accrual_increases_totalAssets() public {
         vm.prank(user);
         vault.deposit(100e6, user);
 
-        // Simulate 5% interest (5 USDHL)
-        token.mint(address(pool1), 5e6); // pool needs underlying to pay
+        // Simulate 5% interest (5 USDHL) on Aave pool
+        token.mint(address(pool1), 5e6);
         pool1.accrueInterest(address(vault), 5e6);
 
         assertEq(vault.totalAssets(), 105e6, "Should reflect interest");
+    }
+
+    function test_felix_interest_accrual() public {
+        // Deposit to Felix
+        vm.prank(allocator);
+        vault.setActiveIndex(2);
+
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        // Simulate 10% interest on Felix vault (share price increases)
+        token.mint(address(felix), 10e6); // Fund Felix so it can pay
+        felix.accrueInterest(10e6);
+
+        assertEq(vault.protocolBalance(2), 110e6, "Felix should reflect interest");
+        assertEq(vault.totalAssets(), 110e6, "Total should reflect interest");
     }
 
     function test_interest_shared_proportionally() public {
@@ -294,12 +464,24 @@ contract YieldVaultTest is Test {
     function test_addProtocol() public {
         MockPool pool3 = new MockPool(IERC20(address(token)));
         vault.addProtocol(address(pool3), address(pool3.aToken()));
-        assertEq(vault.protocolCount(), 3);
+        assertEq(vault.protocolCount(), 4); // 2 Aave + 1 Felix + 1 new
+    }
+
+    function test_addVault() public {
+        MockVault4626 felix2 = new MockVault4626(IERC20(address(token)));
+        vault.addVault(address(felix2));
+        assertEq(vault.protocolCount(), 4);
     }
 
     function test_toggleProtocol() public {
         vault.toggleProtocol(0, false);
-        (,, bool active) = vault.protocols(0);
+        (,,, bool active) = vault.protocols(0);
+        assertFalse(active);
+    }
+
+    function test_toggleFelix() public {
+        vault.toggleProtocol(2, false);
+        (,,, bool active) = vault.protocols(2);
         assertFalse(active);
     }
 
@@ -326,6 +508,21 @@ contract YieldVaultTest is Test {
         vault.emergencyPull(0);
 
         assertEq(vault.protocolBalance(0), 0, "Pool1 should be empty");
+        assertEq(token.balanceOf(address(vault)), 100e6, "Vault has idle");
+        assertEq(vault.totalAssets(), 100e6, "Total unchanged");
+    }
+
+    function test_emergencyPull_felix() public {
+        // Deposit to Felix
+        vm.prank(allocator);
+        vault.setActiveIndex(2);
+
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        vault.emergencyPull(2);
+
+        assertEq(vault.protocolBalance(2), 0, "Felix should be empty");
         assertEq(token.balanceOf(address(vault)), 100e6, "Vault has idle");
         assertEq(vault.totalAssets(), 100e6, "Total unchanged");
     }
@@ -382,5 +579,39 @@ contract YieldVaultTest is Test {
     function test_invalid_index_reverts() public {
         vm.expectRevert(YieldVault.InvalidIndex.selector);
         vault.toggleProtocol(999, true);
+    }
+
+    // ─── Cross-Protocol Full Lifecycle ───
+
+    function test_full_lifecycle_across_all_protocols() public {
+        // Deposit to pool1
+        vm.prank(user);
+        vault.deposit(300e6, user);
+        assertEq(vault.protocolBalance(0), 300e6);
+
+        // Reallocate: 100 to pool2, 100 to Felix
+        vm.startPrank(allocator);
+        vault.reallocate(0, 1, 100e6);
+        vault.reallocate(0, 2, 100e6);
+        vm.stopPrank();
+
+        assertEq(vault.protocolBalance(0), 100e6, "Pool1: 100");
+        assertEq(vault.protocolBalance(1), 100e6, "Pool2: 100");
+        assertEq(vault.protocolBalance(2), 100e6, "Felix: 100");
+        assertEq(vault.totalAssets(), 300e6, "Total: 300");
+
+        // Simulate interest on Felix (10%)
+        token.mint(address(felix), 10e6);
+        felix.accrueInterest(10e6);
+
+        assertEq(vault.totalAssets(), 310e6, "Total with interest: 310");
+
+        // Withdraw everything
+        uint256 shares = vault.balanceOf(user);
+        vm.prank(user);
+        vault.redeem(shares, user, user);
+
+        assertEq(vault.totalAssets(), 0, "Vault empty");
+        assertApproxEqAbs(token.balanceOf(user), 10_010e6, 1, "User gets principal + interest");
     }
 }
