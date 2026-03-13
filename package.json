@@ -1,0 +1,15 @@
+{
+  "name": "yield-agent",
+  "version": "1.0.0",
+  "description": "AI yield allocation agent for HyperEVM lending protocols",
+  "type": "module",
+  "scripts": {
+    "monitor": "tsx src/monitor.ts",
+    "scan": "tsx src/scan.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "viem": "^2.47.2"
+  }
+}
