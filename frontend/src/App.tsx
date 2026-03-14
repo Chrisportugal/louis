@@ -23,7 +23,7 @@ const XIcon = () => (
   </svg>
 )
 
-type Page = 'vault' | 'bridge' | 'points'
+type Page = 'vault' | 'points'
 
 function App() {
   const [page, setPage] = useState<Page>('vault')
@@ -43,12 +43,6 @@ function App() {
                   onClick={() => setPage('vault')}
                 >
                   Vault
-                </button>
-                <button
-                  className={`nav-tab ${page === 'bridge' ? 'active' : ''}`}
-                  onClick={() => setPage('bridge')}
-                >
-                  Bridge
                 </button>
                 <button
                   className={`nav-tab ${page === 'points' ? 'active' : ''}`}
@@ -82,17 +76,6 @@ function App() {
                 </p>
               </div>
               <VaultCard />
-            </main>
-          )}
-
-          {page === 'bridge' && (
-            <main className="main">
-              <div className="hero">
-                <h1 className="hero-title">Bridge to HyperEVM</h1>
-                <p className="hero-sub">
-                  Bridge assets from any chain to HyperEVM, then deposit into the vault.
-                </p>
-              </div>
               <BridgeCard />
             </main>
           )}

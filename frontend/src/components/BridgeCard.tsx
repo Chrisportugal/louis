@@ -6,7 +6,7 @@ const ACROSS_URL =
   'https://app.across.to/bridge?destinationChainId=999&outputToken=0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5'
 
 const DEBRIDGE_URL =
-  'https://app.debridge.finance/?r=31377&inputChain=7565164&outputChain=999&inputCurrency=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputCurrency=0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5&dlnSwitch=true'
+  'https://app.debridge.com/?inputChain=7565164&outputChain=999&inputCurrency=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputCurrency=0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5&dlnMode=simple'
 
 export function BridgeCard() {
   const [provider, setProvider] = useState<BridgeProvider>('across')
@@ -53,7 +53,7 @@ export function BridgeCard() {
       </div>
 
       <div className="bridge-note">
-        After bridging, switch back to the Vault tab to deposit into Louis.
+        After bridging, your tokens will arrive on HyperEVM. Then deposit above.
       </div>
     </div>
   )
