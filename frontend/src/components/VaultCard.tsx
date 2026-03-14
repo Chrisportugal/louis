@@ -183,13 +183,13 @@ export function VaultCard() {
 
   // Determine current action step
   const getAction = () => {
-    if (mode === 'withdraw') return { label: 'Withdraw', handler: handleWithdraw }
-    if (needsApproval) return { label: `Approve ${selectedToken.symbol}`, handler: handleApprove }
+    if (mode === 'withdraw') return { label: 'Withdraw', handler: handleWithdraw, step: '' }
+    if (needsApproval) return { label: 'Deposit', handler: handleApprove, step: `Step 1: Approve ${selectedToken.symbol}` }
     if (swap.needsSwap) {
-      if (needsUsdhlApproval) return { label: 'Approve USDHL', handler: handleApproveUsdhl }
-      return { label: `Swap to USDHL`, handler: handleSwap }
+      if (needsUsdhlApproval) return { label: 'Deposit', handler: handleApproveUsdhl, step: 'Step 2: Approve USDHL' }
+      return { label: 'Deposit', handler: handleSwap, step: 'Step 2: Swap to USDHL' }
     }
-    return { label: 'Deposit', handler: handleDeposit }
+    return { label: 'Deposit', handler: handleDeposit, step: '' }
   }
 
   const action = getAction()
@@ -301,6 +301,13 @@ export function VaultCard() {
       {error && (
         <div className="error-msg" style={{ color: '#ff6b6b', fontSize: '13px', marginBottom: '12px', textAlign: 'center' }}>
           {error}
+        </div>
+      )}
+
+      {/* Step indicator */}
+      {action.step && (
+        <div style={{ color: '#888', fontSize: '12px', marginBottom: '8px', textAlign: 'center' }}>
+          {action.step}
         </div>
       )}
 
