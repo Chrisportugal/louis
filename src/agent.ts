@@ -42,7 +42,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const STATE_FILE = join(__dirname, 'agent-state.json')
 
-const VAULT = '0xCA94b6120853c77C6456Fb24c8618bEa8961Ab75' as Address
+const VAULT = '0x6F07C0D9A754f420697a43336E72ad0bfe78500b' as Address
 const USDHL = '0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5' as Address
 
 // Protocol info matching vault indices

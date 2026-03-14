@@ -4,7 +4,7 @@ export const ADDRESSES = {
   USDC: '0xb88339CB7199b77E23DB6E890353E22632Ba630f' as `0x${string}`,
   USDT: '0xB8CE59fc3717ada4C02eadf9682A9e934F625Ebb' as `0x${string}`,
   HYPERSWAP_ROUTER: '0xb4a9C4e6Ea8E2191d2FA5B380452a634Fb21240A' as `0x${string}`,
-  VAULT: '0xCA94b6120853c77C6456Fb24c8618bEa8961Ab75' as `0x${string}`,
+  VAULT: '0x6F07C0D9A754f420697a43336E72ad0bfe78500b' as `0x${string}`,
 } as const
 
 // Supported deposit tokens

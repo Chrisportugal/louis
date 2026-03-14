@@ -599,14 +599,14 @@ contract YieldVaultTest is Test {
 
         assertEq(vault.totalAssets(), 1100e6, "Total with interest");
 
-        // Harvest — should mint fee shares worth 10% of 100 = 10 USDHL
+        // Harvest — should mint fee shares worth 20% of 100 = 20 USDHL
         vault.harvest();
 
         uint256 feeShares = vault.balanceOf(feeRecipient);
         assertGt(feeShares, 0, "Fee recipient should have shares");
 
         uint256 feeAssets = vault.convertToAssets(feeShares);
-        assertApproxEqAbs(feeAssets, 10e6, 0.1e6, "Fee should be ~10 USDHL");
+        assertApproxEqAbs(feeAssets, 20e6, 0.5e6, "Fee should be ~20 USDHL");
     }
 
     function test_harvest_no_yield_no_fee() public {
@@ -672,8 +672,8 @@ contract YieldVaultTest is Test {
         uint256 feeAfter2 = vault.convertToAssets(vault.balanceOf(feeRecipient));
 
         assertGt(feeAfter2, feeAfter1, "Fee should grow with more harvests");
-        // Total yield = 100, total fee should be ~10 USDHL (with share dilution rounding)
-        assertApproxEqAbs(feeAfter2, 10e6, 0.2e6, "Total fee ~10 USDHL");
+        // Total yield = 100, total fee should be ~20 USDHL (20% fee, with share dilution rounding)
+        assertApproxEqAbs(feeAfter2, 20e6, 0.5e6, "Total fee ~20 USDHL");
     }
 
     // ─── Cross-Protocol Full Lifecycle ───
@@ -808,5 +808,126 @@ contract YieldVaultTest is Test {
         vm.expectEmit(true, false, false, true);
         emit YieldVault.EmergencyPull(0, 100e6);
         vault.emergencyPull(0);
+    }
+
+    // ─── V2: Adjustable Fee Tests ───
+
+    function test_setFeeBps() public {
+        // Lower fee to 5%
+        vault.setFeeBps(500);
+        assertEq(vault.feeBps(), 500);
+
+        // Deposit + interest
+        vm.prank(user);
+        vault.deposit(1000e6, user);
+        token.mint(address(pool1), 100e6);
+        pool1.accrueInterest(address(vault), 100e6);
+
+        vault.harvest();
+        uint256 feeAssets = vault.convertToAssets(vault.balanceOf(feeRecipient));
+        assertApproxEqAbs(feeAssets, 5e6, 0.1e6, "Fee should be ~5 USDHL at 5%");
+    }
+
+    function test_setFeeBps_cap() public {
+        // Setting above MAX_FEE_BPS (2000) should revert
+        vm.expectRevert(YieldVault.FeeTooHigh.selector);
+        vault.setFeeBps(2001);
+    }
+
+    function test_setFeeBps_at_max() public {
+        // Setting exactly at max should work
+        vault.setFeeBps(2000);
+        assertEq(vault.feeBps(), 2000);
+    }
+
+    function test_setFeeBps_zero() public {
+        // Setting to 0 should work (no fee)
+        vault.setFeeBps(0);
+        assertEq(vault.feeBps(), 0);
+
+        vm.prank(user);
+        vault.deposit(1000e6, user);
+        token.mint(address(pool1), 100e6);
+        pool1.accrueInterest(address(vault), 100e6);
+
+        vault.harvest();
+        assertEq(vault.balanceOf(feeRecipient), 0, "No fee when feeBps is 0");
+    }
+
+    function test_setFeeBps_only_owner() public {
+        vm.prank(allocator);
+        vm.expectRevert();
+        vault.setFeeBps(500);
+    }
+
+    // ─── V2: Reallocate Slippage + Self-Reallocate ───
+
+    function test_reallocate_self_reverts() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        vm.prank(allocator);
+        vm.expectRevert(YieldVault.InvalidIndex.selector);
+        vault.reallocate(0, 0, 50e6);
+    }
+
+    function test_reallocate_preserves_total_assets() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        uint256 totalBefore = vault.totalAssets();
+
+        vm.prank(allocator);
+        vault.reallocate(0, 1, 60e6);
+
+        assertEq(vault.totalAssets(), totalBefore, "Total assets unchanged after reallocate");
+    }
+
+    // ─── V2: Max Protocols Cap ───
+
+    function test_max_protocols_cap() public {
+        // Already have 3 protocols (2 Aave + 1 Felix). Add 7 more to hit 10.
+        for (uint256 i = 0; i < 7; i++) {
+            MockPool p = new MockPool(IERC20(address(token)));
+            vault.addProtocol(address(p), address(p.aToken()));
+        }
+        assertEq(vault.protocolCount(), 10);
+
+        // 11th should revert
+        MockPool extra = new MockPool(IERC20(address(token)));
+        address extraAToken = address(extra.aToken());
+        vm.expectRevert(YieldVault.TooManyProtocols.selector);
+        vault.addProtocol(address(extra), extraAToken);
+    }
+
+    function test_max_vaults_cap() public {
+        // Already have 3. Add 7 more ERC-4626 vaults.
+        for (uint256 i = 0; i < 7; i++) {
+            MockVault4626 v = new MockVault4626(IERC20(address(token)));
+            vault.addVault(address(v));
+        }
+        assertEq(vault.protocolCount(), 10);
+
+        // 11th should revert
+        MockVault4626 extra = new MockVault4626(IERC20(address(token)));
+        vm.expectRevert(YieldVault.TooManyProtocols.selector);
+        vault.addVault(address(extra));
+    }
+
+    // ─── V2: Decimals Offset (First-Depositor Mitigation) ───
+
+    function test_decimals_offset_deposit_withdraw() public {
+        // With _decimalsOffset = 3, shares have 3 extra decimals of precision
+        // This makes inflation attacks 1000x more expensive
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        uint256 shares = vault.balanceOf(user);
+        assertGt(shares, 0, "Should receive shares");
+
+        // Full redeem should return all tokens
+        vm.prank(user);
+        vault.redeem(shares, user, user);
+        assertEq(token.balanceOf(user), 10_000e6, "Full redeem returns all");
     }
 }

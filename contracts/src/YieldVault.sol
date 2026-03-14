@@ -71,13 +71,15 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     address public allocator;    // Authorized to reallocate (the AI agent)
 
     // ── Fee ──
-    uint256 public constant FEE_BPS = 1000;  // 10% management fee (basis points)
+    uint256 public constant MAX_FEE_BPS = 2000;  // Hard cap: 20%
     uint256 public constant BPS = 10_000;
-    address public feeRecipient;             // Receives fee as vault shares
-    uint256 public lastTotalAssets;          // Snapshot for fee calculation
+    uint256 public feeBps = 2000;                 // Starts at 20%, owner can lower (never above 20%)
+    address public feeRecipient;                  // Receives fee as vault shares
+    uint256 public lastTotalAssets;               // Snapshot for fee calculation
 
     // ── Safety ──
-    uint256 public constant MIN_DEPOSIT = 1000;  // Minimum deposit to prevent first-depositor attack (0.001 USDHL)
+    uint256 public constant MIN_DEPOSIT = 1000;       // Minimum deposit (0.001 USDHL)
+    uint256 public constant MAX_PROTOCOLS = 10;        // Max registered protocols
 
     // ═══════════════════════════════════════════════════════════════
     //  Events
@@ -89,6 +91,7 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     event AllocatorSet(address indexed allocator);
     event ActiveIndexSet(uint256 indexed index);
     event FeeRecipientSet(address indexed recipient);
+    event FeeBpsSet(uint256 newFeeBps);
     event Harvested(uint256 yield, uint256 feeShares);
     event EmergencyPull(uint256 indexed index, uint256 amount);
 
@@ -101,6 +104,9 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     error NotActive();
     error ZeroAddress();
     error DepositTooSmall();
+    error FeeTooHigh();
+    error TooManyProtocols();
+    error SlippageExceeded();
 
     // ═══════════════════════════════════════════════════════════════
     //  Modifiers
@@ -120,7 +126,7 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     /// @param symbol_       Vault share token symbol (e.g., "yUSDHL")
     /// @param owner_        Admin who can add protocols, emergency withdraw
     /// @param allocator_    Address authorized to reallocate (AI agent)
-    /// @param feeRecipient_ Address that receives 10% management fee as vault shares
+    /// @param feeRecipient_ Address that receives performance fee as vault shares (20%, adjustable)
     constructor(
         IERC20 asset_,
         string memory name_,
@@ -148,6 +154,7 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     /// @param aToken The aToken address for `asset()` on this pool
     function addProtocol(address pool, address aToken) external onlyOwner {
         if (pool == address(0) || aToken == address(0)) revert ZeroAddress();
+        if (protocols.length >= MAX_PROTOCOLS) revert TooManyProtocols();
         protocols.push(Protocol(ProtocolType.AAVE_V3, pool, aToken, true));
         emit ProtocolAdded(protocols.length - 1, ProtocolType.AAVE_V3, pool, aToken);
     }
@@ -156,6 +163,7 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     /// @param vault4626 The ERC-4626 vault address
     function addVault(address vault4626) external onlyOwner {
         if (vault4626 == address(0)) revert ZeroAddress();
+        if (protocols.length >= MAX_PROTOCOLS) revert TooManyProtocols();
         protocols.push(Protocol(ProtocolType.ERC4626_VAULT, vault4626, vault4626, true));
         emit ProtocolAdded(protocols.length - 1, ProtocolType.ERC4626_VAULT, vault4626, vault4626);
     }
@@ -189,6 +197,13 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         emit FeeRecipientSet(newRecipient);
     }
 
+    /// @notice Update the performance fee (cannot exceed MAX_FEE_BPS = 20%)
+    function setFeeBps(uint256 newFee) external onlyOwner {
+        if (newFee > MAX_FEE_BPS) revert FeeTooHigh();
+        feeBps = newFee;
+        emit FeeBpsSet(newFee);
+    }
+
     /// @notice Pause the vault — disables deposits
     function pause() external onlyOwner {
         _pause();
@@ -199,8 +214,8 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         _unpause();
     }
 
-    /// @notice Collect 10% of yield earned since last harvest as vault shares
-    /// @dev    Mints new shares to feeRecipient proportional to the fee amount
+    /// @notice Collect performance fee on yield earned since last harvest as vault shares
+    /// @dev    Fee is `feeBps` (default 20%, max 20%). Mints new shares to feeRecipient.
     function harvest() external auth nonReentrant {
         uint256 currentTotal = totalAssets();
         if (currentTotal <= lastTotalAssets) {
@@ -209,7 +224,7 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         }
 
         uint256 yield_ = currentTotal - lastTotalAssets;
-        uint256 feeAssets = (yield_ * FEE_BPS) / BPS; // 10%
+        uint256 feeAssets = (yield_ * feeBps) / BPS;
 
         if (feeAssets > 0 && feeRecipient != address(0)) {
             // Mint vault shares worth `feeAssets` to feeRecipient
@@ -228,16 +243,22 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     // ═══════════════════════════════════════════════════════════════
 
     /// @notice Move funds from one protocol to another
-    /// @dev    Only callable by allocator or owner
+    /// @dev    Only callable by allocator or owner. Verifies no funds lost via slippage check.
     /// @param from   Protocol index to withdraw from
     /// @param to     Protocol index to deposit into
     /// @param amount Amount of underlying asset to move
     function reallocate(uint256 from, uint256 to, uint256 amount) external auth nonReentrant {
         if (from >= protocols.length || to >= protocols.length) revert InvalidIndex();
+        if (from == to) revert InvalidIndex();
         if (!protocols[to].active) revert NotActive();
 
+        uint256 totalBefore = totalAssets();
         _withdrawFrom(from, amount);
         _supplyTo(to, amount);
+        uint256 totalAfter = totalAssets();
+
+        // Allow 2 wei rounding tolerance
+        if (totalAfter + 2 < totalBefore) revert SlippageExceeded();
 
         emit Reallocated(from, to, amount);
     }
@@ -252,6 +273,11 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         for (uint256 i = 0; i < protocols.length; i++) {
             total += _protocolAssets(i);
         }
+    }
+
+    /// @dev Virtual share offset to mitigate first-depositor inflation attack (1000x cost)
+    function _decimalsOffset() internal pure override returns (uint8) {
+        return 3;
     }
 
     /// @dev After pulling tokens from depositor, supply to the active protocol
