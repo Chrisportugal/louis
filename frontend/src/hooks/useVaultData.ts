@@ -16,6 +16,19 @@ interface VaultData {
 
 const MORPHO_API = 'https://api.morpho.org/graphql'
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, ms = 8000): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), ms)
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    clearTimeout(timeout)
+    return res
+  } catch (e) {
+    clearTimeout(timeout)
+    throw e
+  }
+}
+
 async function fetchFelixVaults(): Promise<ProtocolYield[]> {
   const query = `{
     vaults(where: { chainId_in: [999] }, orderBy: TotalAssetsUsd, orderDirection: Desc) {
@@ -29,7 +42,7 @@ async function fetchFelixVaults(): Promise<ProtocolYield[]> {
   }`
 
   try {
-    const res = await fetch(MORPHO_API, {
+    const res = await fetchWithTimeout(MORPHO_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
@@ -37,7 +50,6 @@ async function fetchFelixVaults(): Promise<ProtocolYield[]> {
     const data = await res.json() as any
     const vaults = data?.data?.vaults?.items ?? []
 
-    // Filter USDHL vaults
     return vaults
       .filter((v: any) => v.asset?.symbol?.toLowerCase().includes('usd'))
       .slice(0, 5)
@@ -53,15 +65,14 @@ async function fetchFelixVaults(): Promise<ProtocolYield[]> {
 }
 
 async function fetchAaveRates(): Promise<ProtocolYield[]> {
-  // Fetch from DefiLlama for simplicity
   try {
-    const res = await fetch('https://yields.llama.fi/pools')
+    const res = await fetchWithTimeout('https://yields.llama.fi/pools', {}, 10000)
     const data = await res.json() as any
     const pools = data?.data ?? []
 
     const hyperPools = pools.filter(
       (p: any) =>
-        p.chain === 'Hyperliquid' &&
+        (p.chain === 'Hyperliquid' || p.chain === 'HyperEVM') &&
         p.symbol?.toLowerCase().includes('usd')
     )
 
@@ -87,28 +98,41 @@ export function useVaultData(): VaultData {
   })
 
   const refresh = useCallback(async () => {
-    setData((prev) => ({ ...prev, loading: true }))
+    try {
+      // Fetch Felix first (fast, small response) - show APY immediately
+      const felix = await fetchFelixVaults()
 
-    const [felix, aave] = await Promise.all([
-      fetchFelixVaults(),
-      fetchAaveRates(),
-    ])
+      if (felix.length > 0) {
+        const bestApy = Math.max(...felix.map(f => f.apy))
+        setData({
+          totalApy: bestApy,
+          totalTvl: felix.reduce((sum, p) => sum + p.tvl, 0),
+          protocols: felix.sort((a, b) => b.apy - a.apy),
+          loading: false,
+        })
+      }
 
-    const protocols = [...aave, ...felix].sort((a, b) => b.apy - a.apy)
-    const bestApy = protocols.length > 0 ? protocols[0].apy : 0
-    const totalTvl = protocols.reduce((sum, p) => sum + p.tvl, 0)
+      // Then fetch DefiLlama (slow, huge response) and merge
+      const aave = await fetchAaveRates()
+      const all = [...aave, ...felix].sort((a, b) => b.apy - a.apy)
+      const bestApy = all.length > 0 ? all[0].apy : 0
+      const totalTvl = all.reduce((sum, p) => sum + p.tvl, 0)
 
-    setData({
-      totalApy: bestApy,
-      totalTvl,
-      protocols,
-      loading: false,
-    })
+      setData({
+        totalApy: bestApy,
+        totalTvl,
+        protocols: all,
+        loading: false,
+      })
+    } catch {
+      // If everything fails, stop loading
+      setData(prev => ({ ...prev, loading: false }))
+    }
   }, [])
 
   useEffect(() => {
     refresh()
-    const interval = setInterval(refresh, 60_000) // Refresh every minute
+    const interval = setInterval(refresh, 60_000)
     return () => clearInterval(interval)
   }, [refresh])
 
