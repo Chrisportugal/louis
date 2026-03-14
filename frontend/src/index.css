@@ -727,3 +727,98 @@ body {
 .disclaimer-accept:hover {
   background: var(--accent-hover);
 }
+
+/* ─── Points Section ─── */
+.points-section { max-width: 640px; margin: 32px auto 0; width: 100%; }
+.points-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
+.points-title { font-size: 24px; font-weight: 700; color: var(--text-bright); }
+.points-subtitle { font-size: 13px; color: var(--accent); font-weight: 500; }
+
+.points-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.points-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.points-card-label {
+  font-size: 12px; color: var(--text-dim); font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+.points-card-value { font-size: 24px; font-weight: 700; color: var(--text-bright); }
+.points-card-league { display: flex; align-items: center; gap: 8px; }
+.points-league-icon { font-size: 28px; }
+
+.points-card-share { position: relative; overflow: hidden; }
+
+.points-share-preview {
+  position: relative;
+  background: #0f1923;
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 10px;
+  padding: 20px 16px 14px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px; overflow: hidden; min-height: 140px;
+}
+
+.points-share-rings {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+
+.points-share-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(59, 130, 246, 0.06); }
+.points-share-ring.r1 { width: 60px; height: 60px; }
+.points-share-ring.r2 { width: 120px; height: 120px; }
+.points-share-ring.r3 { width: 180px; height: 180px; }
+
+.points-share-logo { font-size: 14px; font-weight: 700; color: var(--text-bright); z-index: 1; }
+.points-share-text { font-size: 10px; color: var(--text-dim); z-index: 1; }
+.points-share-value { font-size: 26px; font-weight: 700; z-index: 1; }
+.points-share-footer { font-size: 10px; color: var(--text); z-index: 1; margin-top: 4px; }
+
+.points-save-btn {
+  width: 100%; margin-top: 8px; padding: 8px;
+  background: rgba(59, 130, 246, 0.15); color: var(--accent);
+  border: none; border-radius: 8px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s; font-family: var(--font);
+}
+.points-save-btn:hover { background: rgba(59, 130, 246, 0.25); }
+
+.points-progress-section { margin-bottom: 20px; }
+.points-progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); margin-bottom: 8px; }
+.points-progress-bar { height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
+.points-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #7c3aed); border-radius: 3px; transition: width 0.5s ease; }
+
+.points-leagues { display: flex; gap: 8px; }
+
+.points-league-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 12px 8px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; opacity: 0.5; transition: opacity 0.2s, border-color 0.2s;
+}
+.points-league-item.active { opacity: 1; border-color: var(--accent); }
+.points-league-badge { font-size: 22px; }
+.points-league-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.points-league-req { font-size: 10px; color: var(--text-dim); }
+
+@media (max-width: 640px) {
+  .points-grid { grid-template-columns: repeat(2, 1fr); }
+  .points-leagues { flex-wrap: wrap; }
+  .points-league-item { min-width: calc(33% - 6px); }
+  .points-card-value { font-size: 20px; }
+}
+@media (max-width: 400px) {
+  .points-grid { grid-template-columns: 1fr; }
+}

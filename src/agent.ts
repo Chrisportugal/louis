@@ -17,15 +17,30 @@ import {
   createWalletClient,
   http,
   formatUnits,
+  encodeFunctionData,
   type Chain,
   type Address,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { readFileSync, writeFileSync, renameSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // ─── Config ───
 const INTERVAL_MS = 30 * 60 * 1000 // 30 minutes
 const REBALANCE_THRESHOLD = 0.5    // Only rebalance if >0.5% APY difference
 const DRY_RUN = process.env.DRY_RUN === '1'
+
+// ─── Smart Rebalancing Config ───
+const MIN_CANDIDATE_AGE_MS = 24 * 60 * 60 * 1000  // Must be better for 24h before rebalance
+const COST_PROJECTION_DAYS = 30                     // Project yield gain over 30 days
+const HYPE_PRICE_USD = 15                           // Conservative $/HYPE for gas cost calc
+const APY_HISTORY_MAX = 336                         // 7 days of 30-min readings
+
+// ─── State File ───
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const STATE_FILE = join(__dirname, 'agent-state.json')
 
 const VAULT = '0xCA94b6120853c77C6456Fb24c8618bEa8961Ab75' as Address
 const USDHL = '0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5' as Address
@@ -106,6 +121,97 @@ const MORPHO_VAULT_ABI = [
   { name: 'totalAssets', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { name: 'totalSupply', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
 ] as const
+
+// ─── Agent State (persisted between cycles) ───
+
+interface AgentState {
+  apyHistory: Array<{ timestamp: number; apys: number[] }>  // apys[i] = APY for protocol index i
+  candidate: {
+    index: number
+    name: string
+    firstSeenAt: number  // Unix ms when first observed as best
+  } | null
+  lastRebalanceAt: number | null
+}
+
+const DEFAULT_STATE: AgentState = {
+  apyHistory: [],
+  candidate: null,
+  lastRebalanceAt: null,
+}
+
+function loadState(): AgentState {
+  try {
+    const raw = readFileSync(STATE_FILE, 'utf-8')
+    return JSON.parse(raw) as AgentState
+  } catch {
+    return { ...DEFAULT_STATE, apyHistory: [] }
+  }
+}
+
+function saveState(state: AgentState): void {
+  const tmp = STATE_FILE + '.tmp'
+  writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf-8')
+  renameSync(tmp, STATE_FILE)
+}
+
+// ─── APY Averaging ───
+
+function getAvgApys(state: AgentState, windowMs: number): number[] {
+  const cutoff = Date.now() - windowMs
+  const recent = state.apyHistory.filter(h => h.timestamp >= cutoff)
+  if (recent.length === 0) return [0, 0, 0, 0]
+
+  const sums = [0, 0, 0, 0]
+  for (const entry of recent) {
+    for (let i = 0; i < 4; i++) {
+      sums[i] += entry.apys[i] ?? 0
+    }
+  }
+  return sums.map(s => s / recent.length)
+}
+
+function getDailyAvgApys(state: AgentState): number[] {
+  return getAvgApys(state, 24 * 60 * 60 * 1000) // 24h
+}
+
+function getWeeklyAvgApys(state: AgentState): number[] {
+  return getAvgApys(state, 7 * 24 * 60 * 60 * 1000) // 7d
+}
+
+// ─── Gas Cost & Profit ───
+
+async function estimateRebalanceCostUsd(
+  from: number,
+  to: number,
+  amount: bigint,
+  account: Address,
+): Promise<number> {
+  try {
+    const data = encodeFunctionData({
+      abi: VAULT_ABI,
+      functionName: 'reallocate',
+      args: [BigInt(from), BigInt(to), amount],
+    })
+    const gasEstimate = await publicClient.estimateGas({
+      account,
+      to: VAULT,
+      data,
+    })
+    const gasPrice = await publicClient.getGasPrice()
+    const costWei = gasEstimate * gasPrice
+    const costHype = Number(costWei) / 1e18 * 1.5 // 1.5x safety margin
+    return costHype * HYPE_PRICE_USD
+  } catch (e: any) {
+    console.log(`     ⚠️ Gas estimation failed: ${e.message?.slice(0, 80)}`)
+    return 0.50 // conservative fallback
+  }
+}
+
+function calculateProjectedGainUsd(apyDiff: number, totalAssets: bigint): number {
+  const totalUsd = Number(formatUnits(totalAssets, 6))
+  return (apyDiff / 100) * totalUsd * (COST_PROJECTION_DAYS / 365)
+}
 
 // ─── Fetch APYs ───
 
@@ -309,31 +415,132 @@ async function runCycle() {
     console.log(`\n  ⏸️  Yield too small to harvest (${formatUnits(state.yield, 6)} USDHL)`)
   }
 
-  // 4. Find best APY protocol
-  const best = apys.reduce((a, b) => a.apy > b.apy ? a : b)
-  const current = apys.find(p => p.index === state.activeIndex)!
-  const diff = best.apy - current.apy
+  // 4. Smart rebalancing with daily/weekly averaging
+  const agentState = loadState()
 
-  console.log(`\n  🏆 Best: ${best.name} @ ${best.apy.toFixed(2)}%`)
-  console.log(`  📍 Current: ${current.name} @ ${current.apy.toFixed(2)}%`)
-  console.log(`  📏 Difference: ${diff.toFixed(2)}%`)
-
-  // 5. Rebalance if difference exceeds threshold
-  if (diff > REBALANCE_THRESHOLD && best.index !== state.activeIndex) {
-    console.log(`\n  🚀 Rebalancing! ${current.name} → ${best.name} (${diff.toFixed(2)}% better)`)
-
-    // Move all funds from current to best
-    if (current.balance > 0n) {
-      await reallocate(wallet, current.index, best.index, current.balance)
-    }
-
-    // Update active index for new deposits
-    if (best.index !== state.activeIndex) {
-      await setActiveIndex(wallet, best.index)
-    }
-  } else {
-    console.log(`\n  ✅ No rebalance needed (threshold: ${REBALANCE_THRESHOLD}%)`)
+  // Record this cycle's APYs to history
+  agentState.apyHistory.push({
+    timestamp: Date.now(),
+    apys: PROTOCOLS.map((_, i) => apys.find(p => p.index === i)?.apy ?? 0),
+  })
+  // Trim to 7 days of history
+  if (agentState.apyHistory.length > APY_HISTORY_MAX) {
+    agentState.apyHistory = agentState.apyHistory.slice(-APY_HISTORY_MAX)
   }
+
+  // Compute averages
+  const dailyAvg = getDailyAvgApys(agentState)
+  const weeklyAvg = getWeeklyAvgApys(agentState)
+  const historyCount = agentState.apyHistory.length
+
+  console.log(`\n  📡 Instant APYs:`)
+  for (const p of apys) {
+    console.log(`     [${p.index}] ${p.name.padEnd(25)} ${p.apy.toFixed(2)}%`)
+  }
+
+  console.log(`\n  📊 Daily Avg (24h, ${Math.min(historyCount, 48)} readings):`)
+  console.log(`     ${PROTOCOLS.map((p, i) => `${p.name.split(' ')[0]} ${dailyAvg[i].toFixed(2)}%`).join('  |  ')}`)
+
+  console.log(`  📊 Weekly Avg (7d, ${Math.min(historyCount, 336)} readings):`)
+  console.log(`     ${PROTOCOLS.map((p, i) => `${p.name.split(' ')[0]} ${weeklyAvg[i].toFixed(2)}%`).join('  |  ')}`)
+
+  // Use DAILY averages to find best (not instant — avoids chasing spikes)
+  const currentIdx = state.activeIndex
+  const currentDailyApy = dailyAvg[currentIdx]
+  let bestDailyIdx = 0
+  let bestDailyApy = dailyAvg[0]
+  for (let i = 1; i < dailyAvg.length; i++) {
+    if (dailyAvg[i] > bestDailyApy) {
+      bestDailyApy = dailyAvg[i]
+      bestDailyIdx = i
+    }
+  }
+  const dailyDiff = bestDailyApy - currentDailyApy
+
+  console.log(`\n  🏆 Best (daily avg): ${PROTOCOLS[bestDailyIdx].name} @ ${bestDailyApy.toFixed(2)}%`)
+  console.log(`  📍 Current: ${PROTOCOLS[currentIdx].name} @ ${currentDailyApy.toFixed(2)}%`)
+  console.log(`  📏 Difference: ${dailyDiff.toFixed(2)}%`)
+
+  // Gate 1: Daily average must beat threshold
+  if (dailyDiff > REBALANCE_THRESHOLD && bestDailyIdx !== currentIdx) {
+
+    // Candidate tracking
+    if (agentState.candidate && agentState.candidate.index === bestDailyIdx) {
+      // Same candidate still leading
+      const hoursElapsed = (Date.now() - agentState.candidate.firstSeenAt) / (60 * 60 * 1000)
+      console.log(`\n  📈 ${agentState.candidate.name} has been better for ${hoursElapsed.toFixed(1)}h`)
+
+      // Gate 2: Must be better for >24 hours
+      if (Date.now() - agentState.candidate.firstSeenAt < MIN_CANDIDATE_AGE_MS) {
+        const hoursRemaining = (MIN_CANDIDATE_AGE_MS - (Date.now() - agentState.candidate.firstSeenAt)) / (60 * 60 * 1000)
+        console.log(`  ⏳ Waiting for 24h confirmation (${hoursRemaining.toFixed(1)}h remaining)`)
+        saveState(agentState)
+        return
+      }
+
+      // Gate 3: Weekly average must also confirm
+      const weeklyDiff = weeklyAvg[bestDailyIdx] - weeklyAvg[currentIdx]
+      if (weeklyDiff <= 0) {
+        console.log(`  📉 Weekly avg doesn't confirm (${weeklyDiff.toFixed(2)}%) — waiting for weekly trend`)
+        saveState(agentState)
+        return
+      }
+
+      // Gate 4: Projected gain must exceed gas cost
+      const projectedGain = calculateProjectedGainUsd(dailyDiff, state.totalAssets)
+      const current_protocol = apys.find(p => p.index === currentIdx)!
+      const gasCost = await estimateRebalanceCostUsd(
+        currentIdx,
+        bestDailyIdx,
+        current_protocol.balance,
+        wallet.account.address,
+      )
+
+      console.log(`  💰 Projected 30-day gain: $${projectedGain.toFixed(2)} | Gas cost: $${gasCost.toFixed(4)}`)
+
+      if (projectedGain <= gasCost) {
+        console.log(`  💸 Not profitable at current TVL — skipping`)
+        saveState(agentState)
+        return
+      }
+
+      // ALL GATES PASSED — execute rebalance
+      console.log(`\n  ✅ All gates passed — rebalancing to ${PROTOCOLS[bestDailyIdx].name}`)
+
+      if (current_protocol.balance > 0n) {
+        await reallocate(wallet, currentIdx, bestDailyIdx, current_protocol.balance)
+      }
+      if (bestDailyIdx !== state.activeIndex) {
+        await setActiveIndex(wallet, bestDailyIdx)
+      }
+
+      // Reset candidate after successful rebalance
+      agentState.candidate = null
+      agentState.lastRebalanceAt = Date.now()
+
+    } else {
+      // New candidate (or different protocol took the lead)
+      if (agentState.candidate) {
+        console.log(`\n  🔄 Previous candidate [${agentState.candidate.name}] displaced by [${PROTOCOLS[bestDailyIdx].name}]`)
+      }
+      agentState.candidate = {
+        index: bestDailyIdx,
+        name: PROTOCOLS[bestDailyIdx].name,
+        firstSeenAt: Date.now(),
+      }
+      console.log(`  🆕 New candidate: ${PROTOCOLS[bestDailyIdx].name} is ${dailyDiff.toFixed(2)}% better — starting 24h observation`)
+    }
+
+  } else {
+    // No protocol beats threshold — clear candidate
+    if (agentState.candidate) {
+      console.log(`\n  ↩️  ${agentState.candidate.name} no longer beats threshold — clearing candidate`)
+      agentState.candidate = null
+    }
+    console.log(`\n  ✅ No rebalance needed (daily avg diff: ${dailyDiff.toFixed(2)}%, threshold: ${REBALANCE_THRESHOLD}%)`)
+  }
+
+  saveState(agentState)
 
   console.log(`\n${'─'.repeat(60)}`)
   console.log(`  Next cycle in ${INTERVAL_MS / 60000} minutes`)
@@ -347,6 +554,21 @@ async function main() {
   console.log(`   Mode: ${DRY_RUN ? '🧪 DRY RUN (no transactions)' : '🔴 LIVE'}`)
   console.log(`   Interval: ${INTERVAL_MS / 60000} minutes`)
   console.log(`   Rebalance threshold: ${REBALANCE_THRESHOLD}%`)
+  console.log(`   Time confirmation: ${MIN_CANDIDATE_AGE_MS / 3600000}h`)
+  console.log(`   Cost projection: ${COST_PROJECTION_DAYS} days`)
+  console.log(`   HYPE price (gas calc): $${HYPE_PRICE_USD}`)
+
+  // Load and display existing state
+  const savedState = loadState()
+  console.log(`   APY history: ${savedState.apyHistory.length} readings`)
+  if (savedState.candidate) {
+    const ageHours = (Date.now() - savedState.candidate.firstSeenAt) / 3600000
+    console.log(`   📈 Resuming candidate: ${savedState.candidate.name} (${ageHours.toFixed(1)}h observed)`)
+  }
+  if (savedState.lastRebalanceAt) {
+    const ago = (Date.now() - savedState.lastRebalanceAt) / 3600000
+    console.log(`   Last rebalance: ${ago.toFixed(1)}h ago`)
+  }
 
   // Run first cycle immediately
   await runCycle()

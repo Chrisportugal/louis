@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { config } from './config/wagmi'
 import { ConnectButton } from './components/ConnectButton'
 import { VaultCard } from './components/VaultCard'
+import { PointsCard } from './components/PointsCard'
 import { DisclaimerModal } from './components/DisclaimerModal'
 import './App.css'
 
@@ -58,6 +59,10 @@ function App() {
 
             <VaultCard />
           </main>
+
+          <div style={{ padding: '0 20px 80px' }}>
+            <PointsCard />
+          </div>
 
           <DisclaimerModal />
         </div>
