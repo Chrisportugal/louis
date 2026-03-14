@@ -50,8 +50,8 @@ function App() {
             <div className="hero">
               <h1 className="hero-title">Yield Agent on HyperEVM</h1>
               <p className="hero-sub">
-                Deposit stablecoins. The vault routes capital to the
-                best lending rates across HyperEVM protocols.
+                Deposit stablecoins. The vault routes to the best
+                yield opportunities on HyperEVM.
               </p>
             </div>
 
