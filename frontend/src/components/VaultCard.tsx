@@ -67,7 +67,7 @@ export function VaultCard() {
   })
 
   // Read USDHL balance (for after swap)
-  const { data: usdhlBalance, refetch: refetchUsdhlBalance } = useReadContract({
+  const { refetch: refetchUsdhlBalance } = useReadContract({
     address: ADDRESSES.USDHL,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
@@ -157,19 +157,18 @@ export function VaultCard() {
   useEffect(() => {
     if (!txSuccess || !txHash || txHash === lastHandledHash.current) return
     lastHandledHash.current = txHash
-
-    // Refetch data
-    refetchAllowance()
-    refetchUsdhlAllowance()
-    refetchUsdhlBalance()
     setError(null)
 
-    // Small delay to let allowance data refresh, then auto-advance
-    const timer = setTimeout(() => {
+    // Wait for data to refresh, then auto-advance to next step
+    const timer = setTimeout(async () => {
+      // Await fresh on-chain data before deciding next step
+      await Promise.all([refetchAllowance(), refetchUsdhlAllowance(), refetchUsdhlBalance()])
+      // Reset write mutation so writeContract() works for the next tx
+      resetWrite()
+
       if (depositStep === 'approve') {
         // Approval done — next: swap or deposit
         if (swap.needsSwap) {
-          // Check if USDHL also needs approval for vault
           if (usdhlAllowance !== undefined && usdhlForVault > usdhlAllowance) {
             doApproveUsdhl()
           } else {
@@ -183,12 +182,10 @@ export function VaultCard() {
         doSwap()
       } else if (depositStep === 'swap') {
         // Swap done — now deposit actual USDHL balance
-        refetchUsdhlBalance()
-        setTimeout(() => {
-          // Use actual USDHL balance after swap
-          const depositAmt = usdhlBalance ?? usdhlForVault
-          doDeposit(depositAmt)
-        }, 2000)
+        const { data: freshUsdhl } = await refetchUsdhlBalance()
+        const depositAmt = freshUsdhl ?? usdhlForVault
+        resetWrite()
+        doDeposit(depositAmt)
       } else if (depositStep === 'deposit') {
         // Deposit done!
         setDepositStep('done')
@@ -203,7 +200,7 @@ export function VaultCard() {
 
     return () => clearTimeout(timer)
   }, [txSuccess, txHash, depositStep, swap.needsSwap, parsedAmount, usdhlForVault,
-      usdhlAllowance, usdhlBalance, doApproveUsdhl, doSwap, doDeposit,
+      usdhlAllowance, doApproveUsdhl, doSwap, doDeposit, resetWrite,
       refetchAllowance, refetchUsdhlAllowance, refetchUsdhlBalance])
 
   // ─── Single deposit button handler ───

@@ -112,7 +112,7 @@ export function PointsCard() {
             <li>You earn yield normally — {feePercent}% fee goes to <strong>$LOUIS buybacks</strong></li>
             <li>Keep your deposit until TGE to <strong>keep your points</strong></li>
             <li>Withdraw anytime — you get your yield, but lose your points</li>
-            <li>At TGE: convert points to <strong>$LOUIS</strong> or exercise a <strong>put option</strong></li>
+            <li>At TGE: convert points to <strong>$LOUIS tokens</strong></li>
           </ul>
         </div>
       </div>
@@ -213,12 +213,6 @@ export function PointsCard() {
             <div>
               <strong>Convert to $LOUIS</strong>
               <span className="tge-option-desc">Redeem your points for tokens at a fixed ratio</span>
-            </div>
-          </div>
-          <div className="points-tge-option">
-            <div>
-              <strong>Put Option</strong>
-              <span className="tge-option-desc">Guaranteed floor price — protection if token drops</span>
             </div>
           </div>
         </div>

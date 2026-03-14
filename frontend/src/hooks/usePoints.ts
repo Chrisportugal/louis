@@ -30,7 +30,7 @@ export function getLeague(points: number): League {
 // Users earn yield normally but 20% fee goes to $LOUIS buybacks
 // Points are only kept if user keeps funds deposited until TGE
 // Withdraw = lose points (proportionally)
-// At TGE: convert points → $LOUIS tokens OR exercise put option
+// At TGE: convert points → $LOUIS tokens
 
 export const PERFORMANCE_FEE = 0.20 // 20% of yield goes to $LOUIS buybacks
 
