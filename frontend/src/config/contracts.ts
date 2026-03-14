@@ -15,9 +15,9 @@ export interface TokenInfo {
 }
 
 export const DEPOSIT_TOKENS: TokenInfo[] = [
-  { symbol: 'USDHL', address: ADDRESSES.USDHL, decimals: 6 },
   { symbol: 'USDC',  address: ADDRESSES.USDC,  decimals: 6 },
   { symbol: 'USDT',  address: ADDRESSES.USDT,  decimals: 6 },
+  { symbol: 'USDHL', address: ADDRESSES.USDHL, decimals: 6 },
 ]
 
 // Minimal ERC-20 ABI
