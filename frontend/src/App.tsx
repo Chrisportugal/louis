@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { config } from './config/wagmi'
 import { ConnectButton } from './components/ConnectButton'
 import { VaultCard } from './components/VaultCard'
+import { DisclaimerModal } from './components/DisclaimerModal'
 import './App.css'
 
 const queryClient = new QueryClient()
@@ -57,6 +58,8 @@ function App() {
 
             <VaultCard />
           </main>
+
+          <DisclaimerModal />
         </div>
       </QueryClientProvider>
     </WagmiProvider>
