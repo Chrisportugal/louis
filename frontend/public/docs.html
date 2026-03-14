@@ -159,6 +159,7 @@
       <a href="#overview" class="active"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Overview</a>
       <a href="#how-it-works"><svg class="ico" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>How It Works</a>
       <a href="#protocols"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>Protocols</a>
+      <a href="#points"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Points &amp; $LOUIS</a>
       <a href="#fees"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Fees</a>
       <a href="#risks"><svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Risks</a>
     </div>
@@ -219,7 +220,7 @@
         <text x="400" y="95" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="14" font-weight="700">Louis Vault</text>
         <text x="400" y="113" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="10">ERC-4626</text>
         <text x="400" y="130" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="10">Mints louisUSD</text>
-        <text x="400" y="147" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="9">10% fee on yield</text>
+        <text x="400" y="147" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="9">20% fee on yield</text>
         <line x1="470" y1="90" x2="530" y2="50" stroke="#b04bf8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
         <line x1="470" y1="110" x2="530" y2="110" stroke="#b04bf8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
         <line x1="470" y1="130" x2="530" y2="175" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
@@ -251,11 +252,58 @@
       </tbody>
     </table>
 
+    <h2 id="points">Points &amp; $LOUIS</h2>
+    <p>
+      Louis uses a points system inspired by <a href="https://flyingtulip.com" target="_blank">Flying Tulip</a>.
+      Every dollar you deposit earns you points, which convert to <strong>$LOUIS tokens</strong> at TGE.
+    </p>
+
+    <h3>How Points Work</h3>
+    <ol>
+      <li><strong>Deposit $1 = 1 point</strong> &mdash; Your points equal your current vault balance in USD. Deposit $100 = 100 points.</li>
+      <li><strong>Earn yield normally</strong> &mdash; Your deposit still earns yield from lending protocols. You keep 80% of the yield.</li>
+      <li><strong>20% fee → $LOUIS buybacks</strong> &mdash; The 20% performance fee on yield goes directly toward buying back $LOUIS tokens.</li>
+      <li><strong>Keep deposited until TGE</strong> &mdash; Your points are only redeemable if you keep your funds in the vault until TGE. Withdraw early = lose your points.</li>
+    </ol>
+
+    <div class="callout-green callout">
+      <strong>Example:</strong> You deposit $1,000 into Louis. You earn 1,000 points immediately.
+      If the vault yields 5% APY, you earn ~$50/year in yield (you keep $40, $10 goes to $LOUIS buybacks).
+      At TGE, your 1,000 points convert to $LOUIS tokens.
+    </div>
+
+    <h3>At TGE</h3>
+    <p>When the $LOUIS token launches, point holders have two options:</p>
+    <table>
+      <thead><tr><th>Option</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Convert to $LOUIS</strong></td><td>Redeem your points for $LOUIS tokens at a fixed ratio. Hold for upside if the token appreciates.</td></tr>
+        <tr><td><strong>Put Option</strong></td><td>Exercise a guaranteed floor price. If $LOUIS trades below the floor, you can sell at the guaranteed price &mdash; downside protection.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Leagues</h3>
+    <p>Points unlock league tiers, giving you status and visibility within the community:</p>
+    <table>
+      <thead><tr><th>League</th><th>Points Required</th></tr></thead>
+      <tbody>
+        <tr><td>🪵 Wood</td><td>0+</td></tr>
+        <tr><td>🥉 Bronze</td><td>100+</td></tr>
+        <tr><td>🥈 Silver</td><td>1,000+</td></tr>
+        <tr><td>🥇 Gold</td><td>10,000+</td></tr>
+        <tr><td>💎 Platinum</td><td>100,000+</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Points are live!</strong> Connect your wallet and go to the <a href="/">Points tab</a> to see your current points, league, and share your status.
+    </div>
+
     <h2 id="fees">Fees</h2>
     <table>
       <thead><tr><th>Fee</th><th>Amount</th><th>Details</th></tr></thead>
       <tbody>
-        <tr><td><strong>Management fee</strong></td><td>10% on yield</td><td>Charged only on earned interest, never on deposits. Collected via <code>harvest()</code> as minted vault shares.</td></tr>
+        <tr><td><strong>Performance fee</strong></td><td>20% on yield</td><td>Charged only on earned interest, never on deposits. Goes to $LOUIS token buybacks. Collected via <code>harvest()</code> as minted vault shares.</td></tr>
         <tr><td><strong>DEX swap fee</strong></td><td>~0.3%</td><td>Standard HyperSwap fee when depositing USDC or USDT. Louis charges nothing extra.</td></tr>
         <tr><td><strong>Slippage tolerance</strong></td><td>0.5%</td><td>Max allowed slippage on swaps. Actual stablecoin slippage is typically &lt;0.1%.</td></tr>
         <tr><td><strong>Deposit / withdrawal fee</strong></td><td>None</td><td>No entry or exit fees. You get back exactly what your shares are worth.</td></tr>
