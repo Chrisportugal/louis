@@ -709,4 +709,104 @@ contract YieldVaultTest is Test {
         assertEq(vault.totalAssets(), 0, "Vault empty");
         assertApproxEqAbs(token.balanceOf(user), 10_010e6, 1, "User gets principal + interest");
     }
+
+    // ─── Security Tests ───
+
+    function test_minDeposit_revert() public {
+        vm.prank(user);
+        vm.expectRevert(YieldVault.DepositTooSmall.selector);
+        vault.deposit(999, user); // Below MIN_DEPOSIT of 1000
+    }
+
+    function test_minDeposit_pass() public {
+        vm.prank(user);
+        vault.deposit(1000, user); // Exactly MIN_DEPOSIT
+        assertGt(vault.balanceOf(user), 0);
+    }
+
+    function test_pause_blocks_deposits() public {
+        vault.pause();
+
+        vm.prank(user);
+        vm.expectRevert();
+        vault.deposit(100e6, user);
+    }
+
+    function test_unpause_allows_deposits() public {
+        vault.pause();
+        vault.unpause();
+
+        vm.prank(user);
+        vault.deposit(100e6, user);
+        assertGt(vault.balanceOf(user), 0);
+    }
+
+    function test_pause_allows_withdrawals() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        vault.pause();
+
+        // Withdrawals should still work when paused
+        vm.prank(user);
+        vault.withdraw(50e6, user, user);
+        assertEq(token.balanceOf(user), 9_950e6);
+    }
+
+    function test_pause_only_owner() public {
+        vm.prank(user);
+        vm.expectRevert();
+        vault.pause();
+    }
+
+    function test_zero_address_allocator_reverts() public {
+        vm.expectRevert(YieldVault.ZeroAddress.selector);
+        new YieldVault(
+            IERC20(address(token)),
+            "Test", "TST",
+            owner,
+            address(0),  // zero allocator
+            feeRecipient
+        );
+    }
+
+    function test_zero_address_feeRecipient_reverts() public {
+        vm.expectRevert(YieldVault.ZeroAddress.selector);
+        new YieldVault(
+            IERC20(address(token)),
+            "Test", "TST",
+            owner,
+            allocator,
+            address(0)  // zero fee recipient
+        );
+    }
+
+    function test_addProtocol_zero_address_reverts() public {
+        vm.expectRevert(YieldVault.ZeroAddress.selector);
+        vault.addProtocol(address(0), address(0x1234));
+    }
+
+    function test_addVault_zero_address_reverts() public {
+        vm.expectRevert(YieldVault.ZeroAddress.selector);
+        vault.addVault(address(0));
+    }
+
+    function test_setAllocator_zero_address_reverts() public {
+        vm.expectRevert(YieldVault.ZeroAddress.selector);
+        vault.setAllocator(address(0));
+    }
+
+    function test_setFeeRecipient_zero_address_reverts() public {
+        vm.expectRevert(YieldVault.ZeroAddress.selector);
+        vault.setFeeRecipient(address(0));
+    }
+
+    function test_emergencyPull_emits_event() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        vm.expectEmit(true, false, false, true);
+        emit YieldVault.EmergencyPull(0, 100e6);
+        vault.emergencyPull(0);
+    }
 }

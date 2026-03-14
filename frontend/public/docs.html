@@ -19,6 +19,7 @@
       --text-dim: #4a4d62;
       --accent: #3b82f6;
       --green: #22c55e;
+      --red: #ef4444;
       --font: 'Inter', system-ui, sans-serif;
     }
     body {
@@ -28,7 +29,6 @@
       line-height: 1.7;
       -webkit-font-smoothing: antialiased;
     }
-    /* Nav */
     .nav {
       display: flex; align-items: center; justify-content: space-between;
       padding: 16px 32px; border-bottom: 1px solid var(--border);
@@ -46,8 +46,6 @@
     .nav-right { display: flex; gap: 20px; align-items: center; }
     .btn-app { background: var(--accent); color: white; padding: 8px 20px;
       border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; }
-
-    /* Layout */
     .layout { display: flex; max-width: 1200px; margin: 0 auto; min-height: calc(100vh - 57px); }
     .sidebar {
       width: 240px; padding: 32px 24px; border-right: 1px solid var(--border);
@@ -91,6 +89,9 @@
     .callout-green {
       background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2);
     }
+    .callout-red {
+      background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2);
+    }
     .badge {
       display: inline-block; font-size: 11px; font-weight: 600;
       padding: 3px 8px; border-radius: 4px; margin-right: 6px;
@@ -103,6 +104,19 @@
       letter-spacing: 0.5px; }
     td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
     a { color: var(--accent); }
+    .section-divider {
+      margin: 48px 0 0;
+      padding: 6px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      display: inline-block;
+    }
     @media (max-width: 768px) {
       .sidebar { display: none; }
       .content { padding: 24px 16px; }
@@ -126,304 +140,173 @@
 <div class="layout">
   <aside class="sidebar">
     <div class="sidebar-section">
-      <div class="sidebar-title">Getting Started</div>
+      <div class="sidebar-title">Learn</div>
       <a href="#overview" class="active">Overview</a>
       <a href="#how-it-works">How It Works</a>
       <a href="#protocols">Protocols</a>
-      <a href="#deposits">Multi-Stablecoin</a>
       <a href="#fees">Fees</a>
+      <a href="#risks">Risks</a>
     </div>
     <div class="sidebar-section">
-      <div class="sidebar-title">Smart Contracts</div>
-      <a href="#vault">YieldVault</a>
+      <div class="sidebar-title">Build</div>
       <a href="#architecture">Architecture</a>
       <a href="#security">Security</a>
+      <a href="#api">Contract API</a>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-title">Developers</div>
-      <a href="#deployment">Deployment</a>
-      <a href="#api">Contract API</a>
       <a href="#addresses">Addresses</a>
+      <a href="#deployment">Deployment</a>
+      <a href="#agent">AI Agent</a>
     </div>
   </aside>
 
   <main class="content">
+
+    <!-- ═══════════════════════════════════════ -->
+    <!--  LEARN                                  -->
+    <!-- ═══════════════════════════════════════ -->
+
+    <span class="section-divider">Learn</span>
+
     <h1 id="overview">Louis - Yield Agent on HyperEVM</h1>
     <p>
-      Louis is an AI-powered yield allocation vault on HyperEVM that automatically
-      deploys capital to the highest-yielding lending protocols. Deposit your stablecoins,
-      and the AI agent handles the rest.
+      Louis is an AI-powered yield allocation vault on HyperEVM. Deposit stablecoins (USDC, USDT, or USDHL),
+      and the AI agent automatically routes your capital to the highest-yielding lending protocols.
     </p>
-
     <div class="callout-green callout">
       <strong>Why Louis?</strong> Instead of manually comparing APYs across protocols,
-      Louis monitors rates in real-time and rebalances your deposits to capture the
-      best risk-adjusted yields on HyperEVM.
+      Louis monitors rates in real-time and rebalances to capture the best risk-adjusted yields on HyperEVM.
     </div>
 
     <h2 id="how-it-works">How It Works</h2>
     <ol>
-      <li><strong>Deposit</strong> - You deposit USDC (or other supported stablecoins) into the Louis vault. You receive <code>louisUSD</code> share tokens representing your position.</li>
-      <li><strong>AI Monitors</strong> - The AI agent continuously monitors APYs across all integrated lending protocols on HyperEVM.</li>
-      <li><strong>Auto-Reallocate</strong> - When a better opportunity is found, the agent calls <code>reallocate()</code> to move funds to the higher-yielding protocol.</li>
-      <li><strong>Withdraw Anytime</strong> - Redeem your <code>louisUSD</code> shares at any time. The vault automatically pulls funds from protocols to fulfil your withdrawal.</li>
+      <li><strong>Deposit</strong> &mdash; Deposit USDC, USDT, or USDHL. Non-USDHL tokens are automatically swapped via HyperSwap. You receive <code>louisUSD</code> share tokens.</li>
+      <li><strong>AI Monitors</strong> &mdash; The agent monitors APYs across all integrated lending protocols every 30 minutes.</li>
+      <li><strong>Auto-Reallocate</strong> &mdash; When a better opportunity is found (&gt;0.5% APY difference), the agent moves funds to the higher-yielding protocol.</li>
+      <li><strong>Withdraw Anytime</strong> &mdash; Redeem <code>louisUSD</code> at any time. The vault pulls funds from protocols to fulfill your withdrawal.</li>
     </ol>
 
-    <h2 id="protocols">Integrated Protocols</h2>
-    <p>Louis routes deposits across both Aave V3 forks and ERC-4626 MetaMorpho vaults:</p>
-
-    <table>
-      <thead>
-        <tr><th>Protocol</th><th>Type</th><th>Description</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>HyperLend</strong></td>
-          <td><span class="badge badge-aave">Aave V3 Fork</span></td>
-          <td>Largest Aave V3 fork on HyperEVM (~$373M TVL). Uses the same battle-tested Aave V3 Pool interface (<code>supply</code>/<code>withdraw</code>) with aToken tracking for interest accrual.</td>
-        </tr>
-        <tr>
-          <td><strong>HypurrFi</strong></td>
-          <td><span class="badge badge-aave">Aave V3 Fork</span></td>
-          <td>Second Aave V3 fork on HyperEVM (~$300M TVL). Same Aave V3 interface, competitive stablecoin lending rates.</td>
-        </tr>
-        <tr>
-          <td><strong>Felix USDhl Frontier</strong></td>
-          <td><span class="badge badge-erc4626">ERC-4626</span></td>
-          <td>MetaMorpho vault on Morpho Blue (Morpho fork). Higher APY tier with curated market exposure. Fully ERC-4626 compliant.</td>
-        </tr>
-        <tr>
-          <td><strong>Felix USDhl</strong></td>
-          <td><span class="badge badge-erc4626">ERC-4626</span></td>
-          <td>Conservative MetaMorpho vault with broader market allocation. Lower risk profile.</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h2 id="deposits">Multi-Stablecoin Deposits</h2>
-    <p>
-      Louis accepts <strong>USDHL</strong>, <strong>USDC</strong>, and <strong>USDT</strong>.
-      When you deposit a non-USDHL token, the frontend automatically swaps it to USDHL
-      via HyperSwap (Uniswap V2 fork) before depositing into the vault.
-    </p>
-    <div class="callout">
-      <strong>Swap Flow:</strong> Approve token &rarr; Swap to USDHL via HyperSwap &rarr; Approve USDHL &rarr; Deposit into vault.
-      Default slippage: 0.5%. Quotes refresh every 15 seconds.
-    </div>
-
-    <h2 id="fees">Fees</h2>
-
-    <h3>Management Fee</h3>
-    <p>
-      Louis charges a <strong>10% management fee</strong> on earned yield (not on deposits).
-      The fee is collected via the <code>harvest()</code> function, which:
-    </p>
-    <ol>
-      <li>Calculates yield earned since the last harvest (current totalAssets vs snapshot)</li>
-      <li>Takes 10% of the yield as a fee</li>
-      <li>Mints new vault shares to the fee recipient, proportional to the fee amount</li>
-      <li>Updates the snapshot for the next harvest cycle</li>
-    </ol>
-    <p>
-      This is the standard DeFi fee pattern (used by Yearn, Morpho, etc.) &mdash; share dilution
-      ensures the fee is taken proportionally without moving underlying assets.
-    </p>
-
-    <h3>Swap Slippage</h3>
-    <p>
-      When depositing with <strong>USDC</strong> or <strong>USDT</strong>, the vault automatically
-      swaps to USDHL via HyperSwap before depositing. A <strong>0.5% slippage tolerance</strong>
-      is applied to protect against price movements during the swap.
-    </p>
-    <p>
-      For stablecoin-to-stablecoin swaps, actual slippage is typically &lt;0.1%. The swap quote
-      refreshes every 15 seconds so you always see the latest expected output. There is no
-      additional fee from Louis on swaps &mdash; only the standard HyperSwap DEX fee applies (~0.3%).
-    </p>
-
-    <h2 id="vault">YieldVault Contract</h2>
-    <p>
-      The core contract is an <a href="https://eips.ethereum.org/EIPS/eip-4626" target="_blank">ERC-4626</a>
-      tokenized vault built on OpenZeppelin v5. It supports two protocol types:
-    </p>
-
-    <h3>Protocol Types</h3>
-    <ul>
-      <li><strong>AAVE_V3</strong> - Interacts via <code>IPool.supply()</code> and <code>IPool.withdraw()</code>. Tracks deposits via aToken balances (1:1 with underlying).</li>
-      <li><strong>ERC4626_VAULT</strong> - Interacts via <code>IERC4626.deposit()</code> and <code>IERC4626.withdraw()</code>. Tracks deposits via <code>convertToAssets(shares)</code> for accurate accounting with variable share prices.</li>
-    </ul>
-
-    <h3>Key Functions</h3>
-    <pre><code>// User Functions (ERC-4626 standard)
-deposit(uint256 assets, address receiver) -> uint256 shares
-withdraw(uint256 assets, address receiver, address owner) -> uint256 shares
-redeem(uint256 shares, address receiver, address owner) -> uint256 assets
-
-// AI Agent Functions
-reallocate(uint256 from, uint256 to, uint256 amount)
-setActiveIndex(uint256 index)
-
-// Admin Functions
-addProtocol(address pool, address aToken)  // Aave V3
-addVault(address vault4626)                // ERC-4626
-toggleProtocol(uint256 index, bool active)
-setAllocator(address newAllocator)
-setFeeRecipient(address recipient)
-emergencyPull(uint256 index)
-
-// Fee Functions
-harvest()  // Collects 10% fee on earned yield (owner or allocator)
-
-// View Functions
-totalAssets() -> uint256
-protocolBalance(uint256 index) -> uint256
-protocolCount() -> uint256
-feeRecipient() -> address
-lastTotalAssets() -> uint256</code></pre>
-
-    <h2 id="architecture">Architecture</h2>
-    <div class="callout">
-      <strong>Stack:</strong> Solidity (Foundry) + TypeScript (Viem) + React (Vite + wagmi)
-    </div>
-
-    <h3>Deposit Flow</h3>
-    <p>When a user deposits stablecoins, the vault mints louisUSD shares and routes capital to the active lending protocol:</p>
-    <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; overflow-x: auto;">
+    <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; overflow-x: auto;">
       <svg viewBox="0 0 780 220" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 780px;">
-        <!-- User -->
         <rect x="10" y="80" width="110" height="60" rx="10" fill="#1a1b24" stroke="#3b82f6" stroke-width="1.5"/>
         <text x="65" y="106" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="13" font-weight="600">User</text>
         <text x="65" y="124" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">USDC / USDT / USDHL</text>
-
-        <!-- Arrow 1 -->
         <line x1="120" y1="110" x2="170" y2="110" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
         <text x="145" y="100" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9">swap</text>
-
-        <!-- HyperSwap -->
         <rect x="170" y="80" width="110" height="60" rx="10" fill="#1a1b24" stroke="#2a2d42" stroke-width="1.5"/>
         <text x="225" y="106" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="12" font-weight="600">HyperSwap</text>
         <text x="225" y="124" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">V2 Router</text>
-
-        <!-- Arrow 2 -->
         <line x1="280" y1="110" x2="330" y2="110" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
         <text x="305" y="100" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9">USDHL</text>
-
-        <!-- Vault -->
         <rect x="330" y="65" width="140" height="90" rx="12" fill="#1a1b24" stroke="#3b82f6" stroke-width="2"/>
         <text x="400" y="95" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="14" font-weight="700">Louis Vault</text>
         <text x="400" y="113" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="10">ERC-4626</text>
         <text x="400" y="130" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="10">Mints louisUSD</text>
         <text x="400" y="147" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="9">10% fee on yield</text>
-
-        <!-- Arrow to protocols -->
         <line x1="470" y1="90" x2="530" y2="50" stroke="#b04bf8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
         <line x1="470" y1="110" x2="530" y2="110" stroke="#b04bf8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
         <line x1="470" y1="130" x2="530" y2="170" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
         <line x1="470" y1="140" x2="530" y2="200" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
-
-        <!-- Protocols -->
         <rect x="530" y="25" width="130" height="44" rx="8" fill="#1a1b24" stroke="#b04bf8" stroke-width="1.5"/>
         <text x="595" y="45" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="11" font-weight="600">HyperLend</text>
-        <text x="595" y="60" text-anchor="middle" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">Aave V3 Fork</text>
-
+        <text x="595" y="60" text-anchor="middle" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">Aave V3</text>
         <rect x="530" y="85" width="130" height="44" rx="8" fill="#1a1b24" stroke="#b04bf8" stroke-width="1.5"/>
         <text x="595" y="105" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="11" font-weight="600">HypurrFi</text>
-        <text x="595" y="120" text-anchor="middle" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">Aave V3 Fork</text>
-
+        <text x="595" y="120" text-anchor="middle" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">Aave V3</text>
         <rect x="530" y="145" width="130" height="44" rx="8" fill="#1a1b24" stroke="#3b82f6" stroke-width="1.5"/>
         <text x="595" y="165" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="11" font-weight="600">Felix Frontier</text>
         <text x="595" y="180" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="9">ERC-4626 MetaMorpho</text>
-
         <rect x="530" y="198" width="130" height="20" rx="6" fill="#1a1b24" stroke="#3b82f6" stroke-width="1"/>
         <text x="595" y="212" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="9">Felix USDhl</text>
-
-        <!-- Arrowhead markers -->
         <defs>
-          <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <path d="M0,0 L8,3 L0,6" fill="#3b82f6"/>
-          </marker>
-          <marker id="arrowPurple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <path d="M0,0 L8,3 L0,6" fill="#b04bf8"/>
-          </marker>
-          <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-            <path d="M0,0 L8,3 L0,6" fill="#22c55e"/>
-          </marker>
+          <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3b82f6"/></marker>
+          <marker id="arrowPurple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#b04bf8"/></marker>
+          <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#22c55e"/></marker>
         </defs>
       </svg>
     </div>
 
-    <h3>AI Rebalancing</h3>
-    <p>The off-chain AI agent monitors APYs and calls <code>reallocate()</code> to move funds to the best opportunity:</p>
-    <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; overflow-x: auto;">
-      <svg viewBox="0 0 700 180" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 700px;">
-        <!-- AI Agent -->
-        <rect x="10" y="55" width="130" height="70" rx="10" fill="#1a1b24" stroke="#22c55e" stroke-width="2"/>
-        <text x="75" y="82" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="13" font-weight="700">AI Agent</text>
-        <text x="75" y="100" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="10">Monitor + Rank</text>
-        <text x="75" y="116" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="9">APY comparison</text>
+    <h2 id="protocols">Integrated Protocols</h2>
+    <table>
+      <thead><tr><th>Protocol</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><strong>HyperLend</strong></td><td><span class="badge badge-aave">Aave V3</span></td><td>Largest lending protocol on HyperEVM (~$373M TVL)</td></tr>
+        <tr><td><strong>HypurrFi</strong></td><td><span class="badge badge-aave">Aave V3</span></td><td>Second largest (~$300M TVL)</td></tr>
+        <tr><td><strong>Felix Frontier</strong></td><td><span class="badge badge-erc4626">ERC-4626</span></td><td>MetaMorpho vault &mdash; higher APY, curated markets</td></tr>
+        <tr><td><strong>Felix USDhl</strong></td><td><span class="badge badge-erc4626">ERC-4626</span></td><td>Conservative MetaMorpho vault &mdash; broader allocation</td></tr>
+      </tbody>
+    </table>
 
-        <!-- Data sources going into agent -->
-        <rect x="10" y="5" width="55" height="24" rx="4" fill="rgba(59,130,246,0.1)" stroke="#2a2d42" stroke-width="1"/>
-        <text x="37" y="21" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="8">On-chain</text>
-        <rect x="75" y="5" width="55" height="24" rx="4" fill="rgba(59,130,246,0.1)" stroke="#2a2d42" stroke-width="1"/>
-        <text x="102" y="21" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="8">Morpho API</text>
-        <line x1="37" y1="29" x2="55" y2="55" stroke="#2a2d42" stroke-width="1"/>
-        <line x1="102" y1="29" x2="90" y2="55" stroke="#2a2d42" stroke-width="1"/>
+    <h2 id="fees">Fees</h2>
+    <table>
+      <thead><tr><th>Fee</th><th>Amount</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Management fee</strong></td><td>10% on yield</td><td>Charged only on earned interest, never on deposits. Collected via <code>harvest()</code> as minted vault shares.</td></tr>
+        <tr><td><strong>DEX swap fee</strong></td><td>~0.3%</td><td>Standard HyperSwap fee when depositing USDC or USDT. Louis charges nothing extra.</td></tr>
+        <tr><td><strong>Slippage tolerance</strong></td><td>0.5%</td><td>Max allowed slippage on swaps. Actual stablecoin slippage is typically &lt;0.1%.</td></tr>
+        <tr><td><strong>Deposit / withdrawal fee</strong></td><td>None</td><td>No entry or exit fees. You get back exactly what your shares are worth.</td></tr>
+      </tbody>
+    </table>
 
-        <!-- Arrow to vault -->
-        <line x1="140" y1="90" x2="210" y2="90" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
-        <text x="175" y="82" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="9" font-weight="600">reallocate()</text>
-
-        <!-- Vault -->
-        <rect x="210" y="60" width="120" height="60" rx="10" fill="#1a1b24" stroke="#3b82f6" stroke-width="2"/>
-        <text x="270" y="86" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="13" font-weight="700">Louis Vault</text>
-        <text x="270" y="104" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="10">ERC-4626</text>
-
-        <!-- Arrows from/to protocols -->
-        <line x1="330" y1="75" x2="400" y2="40" stroke="#b04bf8" stroke-width="1.5" stroke-dasharray="5,3"/>
-        <text x="390" y="28" text-anchor="end" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">withdraw</text>
-        <line x1="330" y1="105" x2="400" y2="140" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
-        <text x="390" y="155" text-anchor="end" fill="#22c55e" font-family="Inter, sans-serif" font-size="9">supply</text>
-
-        <!-- Protocol A (low APY) -->
-        <rect x="400" y="20" width="120" height="40" rx="8" fill="#1a1b24" stroke="#b04bf8" stroke-width="1" stroke-dasharray="4,3"/>
-        <text x="460" y="38" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="11">HyperLend</text>
-        <text x="460" y="52" text-anchor="middle" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">2.1% APY</text>
-
-        <!-- Protocol B (high APY) -->
-        <rect x="400" y="120" width="120" height="40" rx="8" fill="#1a1b24" stroke="#22c55e" stroke-width="2"/>
-        <text x="460" y="138" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="11" font-weight="600">Felix Frontier</text>
-        <text x="460" y="152" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="9" font-weight="600">9.2% APY</text>
-
-        <!-- Result label -->
-        <rect x="540" y="75" width="140" height="30" rx="6" fill="rgba(34,197,94,0.1)" stroke="rgba(34,197,94,0.3)" stroke-width="1"/>
-        <text x="610" y="94" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="10" font-weight="600">Funds moved to best APY</text>
-      </svg>
+    <h2 id="risks">Risks</h2>
+    <div class="callout-red callout">
+      <strong>Important:</strong> Louis is unaudited software. Use at your own risk. Only deposit what you can afford to lose.
     </div>
+    <ul>
+      <li><strong>Smart contract risk</strong> &mdash; The vault is not upgradeable. Bugs cannot be patched in-place, but also cannot be exploited via upgrades. The owner can <code>emergencyPull()</code> and <code>pause()</code> to protect deposits.</li>
+      <li><strong>Protocol risk</strong> &mdash; Louis deposits into third-party protocols. If an underlying protocol is exploited, funds there could be lost.</li>
+      <li><strong>Centralization risk</strong> &mdash; The vault owner can add protocols and emergency withdraw. The allocator can move funds. If either private key is compromised, funds could be at risk.</li>
+      <li><strong>APY risk</strong> &mdash; The AI agent relies on on-chain data and APIs. If sources report incorrect rates, it could reallocate to a suboptimal protocol. APY is variable.</li>
+      <li><strong>Swap risk</strong> &mdash; USDC/USDT deposits are swapped via HyperSwap. In extreme conditions, USDHL could depeg, causing higher slippage. If DEX liquidity dries up, deposits may fail.</li>
+      <li><strong>Chain risk</strong> &mdash; HyperEVM (Chain ID 999) is a newer chain with less battle-testing than Ethereum mainnet.</li>
+    </ul>
+
+    <!-- ═══════════════════════════════════════ -->
+    <!--  BUILD                                  -->
+    <!-- ═══════════════════════════════════════ -->
+
+    <span class="section-divider">Build</span>
+
+    <h2 id="architecture">Architecture</h2>
+    <div class="callout">
+      <strong>Stack:</strong> Solidity 0.8.24 (Foundry) &bull; TypeScript (Viem) &bull; React (Vite + wagmi) &bull; OpenZeppelin v5
+    </div>
+
+    <h3>Smart Contract</h3>
+    <p>
+      <code>YieldVault.sol</code> is an <a href="https://eips.ethereum.org/EIPS/eip-4626" target="_blank">ERC-4626</a>
+      tokenized vault with multi-protocol support. Two protocol interfaces:
+    </p>
+    <ul>
+      <li><strong>AAVE_V3</strong> &mdash; <code>IPool.supply()</code> / <code>withdraw()</code>, aToken balance tracking</li>
+      <li><strong>ERC4626_VAULT</strong> &mdash; <code>IERC4626.deposit()</code> / <code>withdraw()</code>, share-to-asset conversion</li>
+    </ul>
+
+    <h3>AI Agent</h3>
+    <p>
+      Off-chain TypeScript agent (runs every 30 min). Fetches APYs from on-chain reads + Morpho API,
+      calls <code>reallocate()</code> when a better opportunity exists (&gt;0.5% threshold), and <code>harvest()</code> to collect fees.
+    </p>
 
     <h3>Role Separation</h3>
     <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; overflow-x: auto;">
       <svg viewBox="0 0 660 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 660px;">
-        <!-- Owner -->
         <rect x="10" y="10" width="190" height="120" rx="10" fill="#1a1b24" stroke="#3b82f6" stroke-width="1.5"/>
-        <text x="105" y="34" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="12" font-weight="700">Owner (Your Wallet)</text>
+        <text x="105" y="34" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="12" font-weight="700">Owner</text>
         <text x="105" y="54" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">addProtocol() / addVault()</text>
-        <text x="105" y="70" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">toggleProtocol()</text>
+        <text x="105" y="70" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">toggleProtocol() / pause()</text>
         <text x="105" y="86" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">emergencyPull()</text>
         <text x="105" y="102" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">setAllocator() / setFeeRecipient()</text>
-        <text x="105" y="118" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">harvest() / reallocate()</text>
-
-        <!-- Allocator -->
+        <text x="105" y="118" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9" font-style="italic">Full admin control</text>
         <rect x="230" y="10" width="190" height="120" rx="10" fill="#1a1b24" stroke="#22c55e" stroke-width="1.5"/>
         <text x="325" y="34" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="12" font-weight="700">Allocator (AI Agent)</text>
         <text x="325" y="58" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">reallocate(from, to, amt)</text>
         <text x="325" y="78" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">setActiveIndex(idx)</text>
         <text x="325" y="98" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">harvest()</text>
         <text x="325" y="118" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9" font-style="italic">Cannot add/remove protocols</text>
-
-        <!-- Users -->
         <rect x="450" y="10" width="190" height="120" rx="10" fill="#1a1b24" stroke="#8b8fa3" stroke-width="1.5"/>
-        <text x="545" y="34" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="12" font-weight="700">Users (Permissionless)</text>
+        <text x="545" y="34" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="12" font-weight="700">Users</text>
         <text x="545" y="58" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">deposit(assets, receiver)</text>
         <text x="545" y="78" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">withdraw(assets, rcvr, owner)</text>
         <text x="545" y="98" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">redeem(shares, rcvr, owner)</text>
@@ -431,79 +314,101 @@ lastTotalAssets() -> uint256</code></pre>
       </svg>
     </div>
 
-    <h3>Smart Contracts</h3>
-    <ul>
-      <li><code>YieldVault.sol</code> - ERC-4626 vault with multi-protocol support + 10% management fee</li>
-      <li>Built on OpenZeppelin v5 (ERC4626, Ownable, SafeERC20)</li>
-      <li>Compiled with Solidity 0.8.24</li>
-    </ul>
-
-    <h3>Off-Chain Agent</h3>
-    <ul>
-      <li><strong>Monitor</strong> - Fetches live APYs from on-chain data + Morpho GraphQL API + DefiLlama</li>
-      <li><strong>Ranker</strong> - Compares risk-adjusted yields across all protocols</li>
-      <li><strong>Executor</strong> - Calls <code>reallocate()</code> via Viem transactions when a better opportunity is found</li>
-    </ul>
-
     <h2 id="security">Security</h2>
     <ul>
-      <li><strong>Non-custodial</strong> - Users can always withdraw. The vault never locks funds.</li>
-      <li><strong>Emergency pull</strong> - Owner can call <code>emergencyPull(index)</code> to instantly pull all funds from any protocol back to idle.</li>
-      <li><strong>Role separation</strong> - Owner manages protocols and emergencies. Allocator (AI agent) can only reallocate between existing protocols, not add/remove them.</li>
-      <li><strong>Battle-tested dependencies</strong> - Built on OpenZeppelin v5.6.1 and ERC-4626 standard.</li>
-      <li><strong>Comprehensive tests</strong> - 41 test cases covering deposits, withdrawals, reallocations, interest accrual, fee harvesting, cross-protocol operations, and edge cases.</li>
+      <li><strong>Reentrancy guard</strong> &mdash; All state-changing functions use OpenZeppelin <code>ReentrancyGuard</code></li>
+      <li><strong>Pausable</strong> &mdash; Owner can pause deposits. Withdrawals always remain open.</li>
+      <li><strong>Minimum deposit</strong> &mdash; 0.001 USDHL minimum to prevent inflation attacks</li>
+      <li><strong>Zero-address checks</strong> &mdash; Constructor and all admin setters validate inputs</li>
+      <li><strong>Emergency pull</strong> &mdash; <code>emergencyPull(index)</code> instantly withdraws from any protocol</li>
+      <li><strong>Non-upgradeable</strong> &mdash; Immutable once deployed. No proxy, no admin backdoor.</li>
+      <li><strong>54 test cases</strong> &mdash; Full coverage of deposits, withdrawals, reallocations, fees, security, and edge cases</li>
     </ul>
 
-    <h2 id="deployment">Deployment</h2>
-    <pre><code># Install dependencies
-npm install
-forge install
+    <h2 id="api">Contract API</h2>
+    <pre><code>// User Functions (ERC-4626)
+deposit(uint256 assets, address receiver) -> uint256 shares
+withdraw(uint256 assets, address receiver, address owner) -> uint256 shares
+redeem(uint256 shares, address receiver, address owner) -> uint256 assets
 
-# Run tests
-forge test -v
+// AI Agent Functions (allocator or owner)
+reallocate(uint256 from, uint256 to, uint256 amount)
+setActiveIndex(uint256 index)
+harvest()
 
-# Deploy to HyperEVM
-export PRIVATE_KEY=your_private_key_here
-forge script contracts/script/Deploy.s.sol \
-  --rpc-url https://rpc.hyperliquid.xyz/evm \
-  --broadcast
+// Admin Functions (owner only)
+addProtocol(address pool, address aToken)
+addVault(address vault4626)
+toggleProtocol(uint256 index, bool active)
+setAllocator(address newAllocator)
+setFeeRecipient(address recipient)
+emergencyPull(uint256 index)
+pause() / unpause()
 
-# Run the yield monitor
-npx tsx src/monitor.ts
+// View Functions
+totalAssets() -> uint256
+protocolBalance(uint256 index) -> uint256
+protocolCount() -> uint256</code></pre>
 
-# Start the frontend
-cd frontend && npm run dev</code></pre>
+    <!-- ═══════════════════════════════════════ -->
+    <!--  DEVELOPERS                             -->
+    <!-- ═══════════════════════════════════════ -->
 
-    <h2 id="api">Contract API Reference</h2>
-
-    <h3>deposit(assets, receiver)</h3>
-    <p>Deposits <code>assets</code> amount of underlying tokens and mints vault shares to <code>receiver</code>. The deposited tokens are immediately supplied to the active protocol.</p>
-
-    <h3>withdraw(assets, receiver, owner)</h3>
-    <p>Burns shares from <code>owner</code> and sends <code>assets</code> underlying tokens to <code>receiver</code>. Automatically pulls from protocols if the vault has insufficient idle balance.</p>
-
-    <h3>reallocate(from, to, amount)</h3>
-    <p>Moves <code>amount</code> of underlying tokens from protocol at index <code>from</code> to protocol at index <code>to</code>. Only callable by the allocator (AI agent) or owner.</p>
+    <span class="section-divider">Developers</span>
 
     <h2 id="addresses">Contract Addresses</h2>
     <table>
       <thead><tr><th>Contract</th><th>Address</th></tr></thead>
       <tbody>
-        <tr><td>USDHL Token</td><td><code>0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5</code></td></tr>
-        <tr><td>USDC Token</td><td><code>0xb88339CB7199b77E23DB6E890353E22632Ba630f</code></td></tr>
-        <tr><td>USDT Token</td><td><code>0xB8CE59fc3717ada4C02eadf9682A9e934F625Ebb</code></td></tr>
-        <tr><td>HyperSwap V2 Router</td><td><code>0xb4a9C4e6Ea8E2191d2FA5B380452a634Fb21240A</code></td></tr>
-        <tr><td>HyperLend Pool (Aave V3 Fork)</td><td><code>0x00A89d7a5A02160f20150EbEA7a2b5E4879A1A8b</code></td></tr>
-        <tr><td>HypurrFi Pool (Aave V3 Fork)</td><td><code>0xceCcE0EB9DD2Ef7996e01e25DD70e461F918A14b</code></td></tr>
-        <tr><td>Felix USDhl Frontier</td><td><code>0x66c71204B70aE27BE6dC3eb41F9aF5868E68fDb6</code></td></tr>
-        <tr><td>Felix USDhl</td><td><code>0x9c59a9389D8f72DE2CdAf1126F36EA4790E2275e</code></td></tr>
         <tr><td>Louis Vault</td><td><code>0xCA94b6120853c77C6456Fb24c8618bEa8961Ab75</code></td></tr>
+        <tr><td>USDHL</td><td><code>0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5</code></td></tr>
+        <tr><td>USDC</td><td><code>0xb88339CB7199b77E23DB6E890353E22632Ba630f</code></td></tr>
+        <tr><td>USDT</td><td><code>0xB8CE59fc3717ada4C02eadf9682A9e934F625Ebb</code></td></tr>
+        <tr><td>HyperSwap Router</td><td><code>0xb4a9C4e6Ea8E2191d2FA5B380452a634Fb21240A</code></td></tr>
+        <tr><td>HyperLend Pool</td><td><code>0x00A89d7a5A02160f20150EbEA7a2b5E4879A1A8b</code></td></tr>
+        <tr><td>HypurrFi Pool</td><td><code>0xceCcE0EB9DD2Ef7996e01e25DD70e461F918A14b</code></td></tr>
+        <tr><td>Felix Frontier</td><td><code>0x66c71204B70aE27BE6dC3eb41F9aF5868E68fDb6</code></td></tr>
+        <tr><td>Felix USDhl</td><td><code>0x9c59a9389D8f72DE2CdAf1126F36EA4790E2275e</code></td></tr>
       </tbody>
     </table>
-
-    <div class="callout" style="margin-top: 40px;">
-      <strong>HyperEVM</strong> - Chain ID: 999 | RPC: <code>https://rpc.hyperliquid.xyz/evm</code>
+    <div class="callout">
+      <strong>HyperEVM</strong> &mdash; Chain ID: 999 | RPC: <code>https://rpc.hyperliquid.xyz/evm</code>
     </div>
+
+    <h2 id="deployment">Deployment</h2>
+    <pre><code># Install
+npm install && forge install
+
+# Run tests (54 passing)
+forge test -v
+
+# Deploy vault
+PRIVATE_KEY=0x... forge script contracts/script/Deploy.s.sol \
+  --rpc-url https://rpc.hyperliquid.xyz/evm \
+  --broadcast --legacy --with-gas-price 1000000000 --slow
+
+# Register protocols
+PRIVATE_KEY=0x... VAULT=0x... forge script contracts/script/Setup.s.sol \
+  --rpc-url https://rpc.hyperliquid.xyz/evm \
+  --broadcast --legacy --with-gas-price 1000000000 --slow
+
+# Start frontend
+cd frontend && npm run dev</code></pre>
+
+    <h2 id="agent">AI Agent</h2>
+    <p>The yield agent runs as a standalone TypeScript process. It monitors APYs, rebalances, and harvests fees automatically.</p>
+    <pre><code># Live mode (executes real transactions)
+PRIVATE_KEY=0x... npx tsx src/agent.ts
+
+# Dry run (logs what it would do, no transactions)
+PRIVATE_KEY=0x... DRY_RUN=1 npx tsx src/agent.ts</code></pre>
+    <p>Configuration (in <code>src/agent.ts</code>):</p>
+    <ul>
+      <li><strong>Interval:</strong> 30 minutes between cycles</li>
+      <li><strong>Rebalance threshold:</strong> &gt;0.5% APY difference to trigger reallocation</li>
+      <li><strong>Harvest threshold:</strong> &gt;$1 accumulated yield to trigger fee collection</li>
+    </ul>
+
   </main>
 </div>
 

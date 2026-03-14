@@ -6,6 +6,9 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @notice Minimal Aave V3 Pool interface (supply + withdraw)
 interface IPool {
@@ -39,8 +42,9 @@ interface IERC4626Vault {
 ///         and ERC-4626 vaults (Felix/MetaMorpho) on HyperEVM to maximize yield.
 /// @dev    An authorized allocator (the AI agent) can reallocate between protocols.
 ///         Users deposit/withdraw the underlying asset; the vault handles the rest.
-contract YieldVault is ERC4626, Ownable {
+contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
+    using Math for uint256;
 
     // ═══════════════════════════════════════════════════════════════
     //  Types
@@ -72,6 +76,9 @@ contract YieldVault is ERC4626, Ownable {
     address public feeRecipient;             // Receives fee as vault shares
     uint256 public lastTotalAssets;          // Snapshot for fee calculation
 
+    // ── Safety ──
+    uint256 public constant MIN_DEPOSIT = 1000;  // Minimum deposit to prevent first-depositor attack (0.001 USDHL)
+
     // ═══════════════════════════════════════════════════════════════
     //  Events
     // ═══════════════════════════════════════════════════════════════
@@ -83,6 +90,7 @@ contract YieldVault is ERC4626, Ownable {
     event ActiveIndexSet(uint256 indexed index);
     event FeeRecipientSet(address indexed recipient);
     event Harvested(uint256 yield, uint256 feeShares);
+    event EmergencyPull(uint256 indexed index, uint256 amount);
 
     // ═══════════════════════════════════════════════════════════════
     //  Errors
@@ -91,6 +99,8 @@ contract YieldVault is ERC4626, Ownable {
     error Unauthorized();
     error InvalidIndex();
     error NotActive();
+    error ZeroAddress();
+    error DepositTooSmall();
 
     // ═══════════════════════════════════════════════════════════════
     //  Modifiers
@@ -123,6 +133,8 @@ contract YieldVault is ERC4626, Ownable {
         ERC4626(asset_)
         Ownable(owner_)
     {
+        if (allocator_ == address(0)) revert ZeroAddress();
+        if (feeRecipient_ == address(0)) revert ZeroAddress();
         allocator = allocator_;
         feeRecipient = feeRecipient_;
     }
@@ -135,6 +147,7 @@ contract YieldVault is ERC4626, Ownable {
     /// @param pool   The Pool contract address (e.g., HyperLend or HypurrFi)
     /// @param aToken The aToken address for `asset()` on this pool
     function addProtocol(address pool, address aToken) external onlyOwner {
+        if (pool == address(0) || aToken == address(0)) revert ZeroAddress();
         protocols.push(Protocol(ProtocolType.AAVE_V3, pool, aToken, true));
         emit ProtocolAdded(protocols.length - 1, ProtocolType.AAVE_V3, pool, aToken);
     }
@@ -142,6 +155,7 @@ contract YieldVault is ERC4626, Ownable {
     /// @notice Register a new ERC-4626 vault (Felix / MetaMorpho)
     /// @param vault4626 The ERC-4626 vault address
     function addVault(address vault4626) external onlyOwner {
+        if (vault4626 == address(0)) revert ZeroAddress();
         protocols.push(Protocol(ProtocolType.ERC4626_VAULT, vault4626, vault4626, true));
         emit ProtocolAdded(protocols.length - 1, ProtocolType.ERC4626_VAULT, vault4626, vault4626);
     }
@@ -163,19 +177,31 @@ contract YieldVault is ERC4626, Ownable {
 
     /// @notice Update the allocator address (the AI agent)
     function setAllocator(address newAllocator) external onlyOwner {
+        if (newAllocator == address(0)) revert ZeroAddress();
         allocator = newAllocator;
         emit AllocatorSet(newAllocator);
     }
 
     /// @notice Update the fee recipient address
     function setFeeRecipient(address newRecipient) external onlyOwner {
+        if (newRecipient == address(0)) revert ZeroAddress();
         feeRecipient = newRecipient;
         emit FeeRecipientSet(newRecipient);
     }
 
+    /// @notice Pause the vault — disables deposits
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpause the vault
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     /// @notice Collect 10% of yield earned since last harvest as vault shares
     /// @dev    Mints new shares to feeRecipient proportional to the fee amount
-    function harvest() external auth {
+    function harvest() external auth nonReentrant {
         uint256 currentTotal = totalAssets();
         if (currentTotal <= lastTotalAssets) {
             lastTotalAssets = currentTotal;
@@ -206,7 +232,7 @@ contract YieldVault is ERC4626, Ownable {
     /// @param from   Protocol index to withdraw from
     /// @param to     Protocol index to deposit into
     /// @param amount Amount of underlying asset to move
-    function reallocate(uint256 from, uint256 to, uint256 amount) external auth {
+    function reallocate(uint256 from, uint256 to, uint256 amount) external auth nonReentrant {
         if (from >= protocols.length || to >= protocols.length) revert InvalidIndex();
         if (!protocols[to].active) revert NotActive();
 
@@ -234,7 +260,9 @@ contract YieldVault is ERC4626, Ownable {
         address receiver,
         uint256 assets,
         uint256 shares
-    ) internal override {
+    ) internal override nonReentrant whenNotPaused {
+        if (assets < MIN_DEPOSIT) revert DepositTooSmall();
+
         // Standard ERC4626: pull tokens from caller, mint shares to receiver
         super._deposit(caller, receiver, assets, shares);
 
@@ -255,7 +283,7 @@ contract YieldVault is ERC4626, Ownable {
         address _owner,
         uint256 assets,
         uint256 shares
-    ) internal override {
+    ) internal override nonReentrant {
         _ensureIdle(assets);
         super._withdraw(caller, receiver, _owner, assets, shares);
 
@@ -347,11 +375,12 @@ contract YieldVault is ERC4626, Ownable {
     // ═══════════════════════════════════════════════════════════════
 
     /// @notice Pull all funds from a protocol back to vault (idle)
-    function emergencyPull(uint256 index) external onlyOwner {
+    function emergencyPull(uint256 index) external onlyOwner nonReentrant {
         if (index >= protocols.length) revert InvalidIndex();
         uint256 bal = _protocolAssets(index);
         if (bal > 0) {
             _withdrawFrom(index, bal);
+            emit EmergencyPull(index, bal);
         }
     }
 }
