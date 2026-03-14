@@ -5,6 +5,8 @@ test = "contracts/test"
 script = "contracts/script"
 libs = ["contracts/lib"]
 solc = "0.8.24"
+optimizer = true
+optimizer_runs = 100
 
 remappings = [
   "@openzeppelin/=contracts/lib/openzeppelin-contracts/",

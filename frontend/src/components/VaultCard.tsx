@@ -1,22 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { parseUnits, formatUnits } from 'viem'
-import { ADDRESSES, ERC20_ABI, VAULT_ABI } from '../config/contracts'
+import { parseUnits, formatUnits, maxUint256 } from 'viem'
+import { ADDRESSES, ERC20_ABI, VAULT_ABI, ROUTER_ABI, DEPOSIT_TOKENS } from '../config/contracts'
+import type { TokenInfo } from '../config/contracts'
 import { useVaultData } from '../hooks/useVaultData'
+import { useSwapQuote } from '../hooks/useSwapQuote'
 
 export function VaultCard() {
   const { address, isConnected } = useAccount()
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit')
+  const [selectedToken, setSelectedToken] = useState<TokenInfo>(DEPOSIT_TOKENS[0])
+  const [showTokenList, setShowTokenList] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const vaultData = useVaultData()
+  const swap = useSwapQuote(selectedToken, amount)
 
-  // Read USDHL balance
-  const { data: usdhlBalance } = useReadContract({
-    address: ADDRESSES.USDHL,
+  // Read selected token balance
+  const { data: tokenBalance } = useReadContract({
+    address: selectedToken.address,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 4_000 },
   })
 
   // Read vault share balance
@@ -25,7 +31,7 @@ export function VaultCard() {
     abi: VAULT_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-    query: { enabled: !!address && ADDRESSES.VAULT !== '0x0000000000000000000000000000000000000000' },
+    query: { enabled: !!address, refetchInterval: 4_000 },
   })
 
   // Convert shares to assets
@@ -37,13 +43,23 @@ export function VaultCard() {
     query: { enabled: !!vaultShares && vaultShares > 0n },
   })
 
-  // Read allowance
-  const { data: allowance } = useReadContract({
+  // Read allowance for selected token → router or vault
+  const approvalTarget = swap.needsSwap ? ADDRESSES.HYPERSWAP_ROUTER : ADDRESSES.VAULT
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: selectedToken.address,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: address ? [address, approvalTarget] : undefined,
+    query: { enabled: !!address && mode === 'deposit', refetchInterval: 4_000 },
+  })
+
+  // Read USDHL allowance for vault (needed after swap)
+  const { data: usdhlAllowance, refetch: refetchUsdhlAllowance } = useReadContract({
     address: ADDRESSES.USDHL,
     abi: ERC20_ABI,
     functionName: 'allowance',
     args: address ? [address, ADDRESSES.VAULT] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address && mode === 'deposit', refetchInterval: 4_000 },
   })
 
   // Read total vault TVL
@@ -51,89 +67,140 @@ export function VaultCard() {
     address: ADDRESSES.VAULT,
     abi: VAULT_ABI,
     functionName: 'totalAssets',
-    query: { enabled: ADDRESSES.VAULT !== '0x0000000000000000000000000000000000000000' },
+    query: { refetchInterval: 10_000 },
   })
 
-  const { writeContract, data: txHash, isPending } = useWriteContract()
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash })
+  const { writeContract, data: txHash, isPending, error: writeError } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash })
+
+  // Refetch allowances after tx confirms
+  useEffect(() => {
+    if (txSuccess) {
+      refetchAllowance()
+      refetchUsdhlAllowance()
+      setError(null)
+    }
+  }, [txSuccess, refetchAllowance, refetchUsdhlAllowance])
+
+  // Show write errors
+  useEffect(() => {
+    if (writeError) {
+      const msg = writeError.message || 'Transaction failed'
+      // Extract short error message
+      const match = msg.match(/reason:\s*(.+?)(?:\n|$)/) || msg.match(/Details:\s*(.+?)(?:\n|$)/)
+      setError(match ? match[1] : msg.slice(0, 120))
+    }
+  }, [writeError])
 
   const balance = mode === 'deposit'
-    ? usdhlBalance ? formatUnits(usdhlBalance, 6) : '0'
+    ? tokenBalance ? formatUnits(tokenBalance, selectedToken.decimals) : '0'
     : vaultAssets ? formatUnits(vaultAssets, 6) : '0'
 
-  const parsedAmount = amount ? parseUnits(amount, 6) : 0n
+  const parsedAmount = amount && parseFloat(amount) > 0
+    ? parseUnits(amount, selectedToken.decimals)
+    : 0n
   const needsApproval = mode === 'deposit' && allowance !== undefined && parsedAmount > allowance
 
-  const annualYield = amount && vaultData.totalApy
-    ? (parseFloat(amount) * vaultData.totalApy / 100).toFixed(2)
+  // For swap flow: after swapping, check if USDHL needs approval for vault
+  const usdhlForVault = swap.needsSwap ? swap.expectedOut : parsedAmount
+  const needsUsdhlApproval = swap.needsSwap && mode === 'deposit'
+    && usdhlAllowance !== undefined && usdhlForVault > usdhlAllowance
+
+  const depositAmount = swap.needsSwap ? swap.expectedOut : parsedAmount
+  const annualYield = depositAmount > 0n && vaultData.totalApy
+    ? (parseFloat(formatUnits(depositAmount, 6)) * vaultData.totalApy / 100).toFixed(2)
     : '0.00'
 
-  const handleMax = () => {
-    setAmount(balance)
+  const handleMax = () => setAmount(balance)
+
+  const handleSelectToken = (token: TokenInfo) => {
+    setSelectedToken(token)
+    setShowTokenList(false)
+    setAmount('')
+    setError(null)
   }
 
+  // Step 1: Approve input token for router (swap) or vault (direct) — max approval
   const handleApprove = () => {
+    setError(null)
+    writeContract({
+      address: selectedToken.address,
+      abi: ERC20_ABI,
+      functionName: 'approve',
+      args: [approvalTarget, maxUint256],
+    })
+  }
+
+  // Step 2: Swap via HyperSwap
+  const handleSwap = () => {
+    if (!address) return
+    setError(null)
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 300) // 5 min
+    writeContract({
+      address: ADDRESSES.HYPERSWAP_ROUTER,
+      abi: ROUTER_ABI,
+      functionName: 'swapExactTokensForTokens',
+      args: [parsedAmount, swap.minOut, [selectedToken.address, ADDRESSES.USDHL], address, deadline],
+    })
+  }
+
+  // Step 3: Approve USDHL for vault (after swap) — max approval
+  const handleApproveUsdhl = () => {
+    setError(null)
     writeContract({
       address: ADDRESSES.USDHL,
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [ADDRESSES.VAULT, parsedAmount],
+      args: [ADDRESSES.VAULT, maxUint256],
     })
   }
 
+  // Step 4: Deposit USDHL into vault
   const handleDeposit = () => {
     if (!address) return
+    setError(null)
+    // For direct USDHL deposits, use parsedAmount. For post-swap, use actual USDHL balance
+    const depositAmt = swap.needsSwap ? usdhlForVault : parsedAmount
     writeContract({
       address: ADDRESSES.VAULT,
       abi: VAULT_ABI,
       functionName: 'deposit',
-      args: [parsedAmount, address],
+      args: [depositAmt, address],
     })
   }
 
   const handleWithdraw = () => {
     if (!address) return
+    setError(null)
+    const withdrawAmount = parseUnits(amount, 6)
     writeContract({
       address: ADDRESSES.VAULT,
       abi: VAULT_ABI,
       functionName: 'withdraw',
-      args: [parsedAmount, address, address],
+      args: [withdrawAmount, address, address],
     })
   }
 
-  const handleAction = () => {
-    if (needsApproval) {
-      handleApprove()
-    } else if (mode === 'deposit') {
-      handleDeposit()
-    } else {
-      handleWithdraw()
+  // Determine current action step
+  const getAction = () => {
+    if (mode === 'withdraw') return { label: 'Withdraw', handler: handleWithdraw }
+    if (needsApproval) return { label: `Approve ${selectedToken.symbol}`, handler: handleApprove }
+    if (swap.needsSwap) {
+      if (needsUsdhlApproval) return { label: 'Approve USDHL', handler: handleApproveUsdhl }
+      return { label: `Swap to USDHL`, handler: handleSwap }
     }
+    return { label: 'Deposit', handler: handleDeposit }
   }
 
-  const buttonLabel = isPending || isConfirming
-    ? 'Confirming...'
-    : needsApproval
-      ? 'Approve USDHL'
-      : mode === 'deposit'
-        ? 'Deposit'
-        : 'Withdraw'
+  const action = getAction()
+  const buttonLabel = isPending || isConfirming ? 'Confirming...' : action.label
 
-  const vaultTvl = totalAssets
-    ? parseFloat(formatUnits(totalAssets, 6))
-    : 0
+  const vaultTvl = totalAssets ? parseFloat(formatUnits(totalAssets, 6)) : 0
 
   return (
     <div className="vault-card">
-      {/* Header */}
       <div className="vault-header">
-        <div className="vault-title-row">
-          <div className="vault-icon">L</div>
-          <div>
-            <h2 className="vault-name">Louis USDHL</h2>
-            <p className="vault-subtitle">Yield Agent on HyperEVM</p>
-          </div>
-        </div>
+        <h2 className="vault-name">Louis USD</h2>
       </div>
 
       {/* Stats Row */}
@@ -149,14 +216,8 @@ export function VaultCard() {
           <span className="stat-value">
             {vaultTvl > 0
               ? `$${vaultTvl.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : vaultData.loading
-                ? '—'
-                : `$${(vaultData.totalTvl / 1e6).toFixed(2)}M`}
+              : '$0'}
           </span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">Asset</span>
-          <span className="stat-value">USDHL</span>
         </div>
       </div>
 
@@ -164,13 +225,13 @@ export function VaultCard() {
       <div className="mode-toggle">
         <button
           className={mode === 'deposit' ? 'active' : ''}
-          onClick={() => setMode('deposit')}
+          onClick={() => { setMode('deposit'); setSelectedToken(DEPOSIT_TOKENS[0]); setError(null) }}
         >
           Deposit
         </button>
         <button
           className={mode === 'withdraw' ? 'active' : ''}
-          onClick={() => setMode('withdraw')}
+          onClick={() => { setMode('withdraw'); setError(null) }}
         >
           Withdraw
         </button>
@@ -181,7 +242,7 @@ export function VaultCard() {
         <div className="input-header">
           <span className="input-label">Amount</span>
           <span className="input-balance">
-            Balance: {parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {mode === 'deposit' ? 'USDHL' : 'lUSDHL'}
+            Balance: {parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {mode === 'deposit' ? selectedToken.symbol : 'louisUSD'}
           </span>
         </div>
         <div className="input-wrapper">
@@ -189,16 +250,44 @@ export function VaultCard() {
             type="number"
             placeholder="0.00"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => { setAmount(e.target.value); setError(null) }}
             min="0"
             step="0.01"
           />
           <div className="input-right">
             <button className="max-btn" onClick={handleMax}>MAX</button>
-            <span className="token-badge">USDHL</span>
+            {mode === 'deposit' ? (
+              <div className="token-selector" onClick={() => setShowTokenList(!showTokenList)}>
+                <span className="token-badge clickable">{selectedToken.symbol}</span>
+                <span className="token-arrow">{showTokenList ? '\u25B2' : '\u25BC'}</span>
+                {showTokenList && (
+                  <div className="token-dropdown">
+                    {DEPOSIT_TOKENS.map((t) => (
+                      <div
+                        key={t.symbol}
+                        className={`token-option ${t.symbol === selectedToken.symbol ? 'selected' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); handleSelectToken(t) }}
+                      >
+                        {t.symbol}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="token-badge">louisUSD</span>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Swap estimate */}
+      {mode === 'deposit' && swap.needsSwap && swap.expectedOut > 0n && (
+        <div className="swap-estimate">
+          <span>You receive</span>
+          <span className="swap-value">~{parseFloat(formatUnits(swap.expectedOut, 6)).toFixed(2)} USDHL</span>
+        </div>
+      )}
 
       {/* Est. Annual Yield */}
       {mode === 'deposit' && amount && parseFloat(amount) > 0 && (
@@ -208,21 +297,10 @@ export function VaultCard() {
         </div>
       )}
 
-      {/* Protocols */}
-      {vaultData.protocols.length > 0 && (
-        <div className="protocols-section">
-          <span className="protocols-label">Active Protocols</span>
-          <div className="protocol-list">
-            {vaultData.protocols.slice(0, 4).map((p, i) => (
-              <div key={i} className="protocol-row">
-                <span className="protocol-name">
-                  <span className={`protocol-dot ${p.type}`} />
-                  {p.name}
-                </span>
-                <span className="protocol-apy">{p.apy.toFixed(2)}%</span>
-              </div>
-            ))}
-          </div>
+      {/* Error display */}
+      {error && (
+        <div className="error-msg" style={{ color: '#ff6b6b', fontSize: '13px', marginBottom: '12px', textAlign: 'center' }}>
+          {error}
         </div>
       )}
 
@@ -230,7 +308,7 @@ export function VaultCard() {
       {isConnected ? (
         <button
           className="action-btn"
-          onClick={handleAction}
+          onClick={action.handler}
           disabled={!amount || parseFloat(amount) <= 0 || isPending || isConfirming}
         >
           {buttonLabel}

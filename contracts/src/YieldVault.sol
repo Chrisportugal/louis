@@ -66,6 +66,12 @@ contract YieldVault is ERC4626, Ownable {
     uint256 public activeIndex;  // Which protocol gets new deposits
     address public allocator;    // Authorized to reallocate (the AI agent)
 
+    // ── Fee ──
+    uint256 public constant FEE_BPS = 1000;  // 10% management fee (basis points)
+    uint256 public constant BPS = 10_000;
+    address public feeRecipient;             // Receives fee as vault shares
+    uint256 public lastTotalAssets;          // Snapshot for fee calculation
+
     // ═══════════════════════════════════════════════════════════════
     //  Events
     // ═══════════════════════════════════════════════════════════════
@@ -75,6 +81,8 @@ contract YieldVault is ERC4626, Ownable {
     event Reallocated(uint256 indexed from, uint256 indexed to, uint256 amount);
     event AllocatorSet(address indexed allocator);
     event ActiveIndexSet(uint256 indexed index);
+    event FeeRecipientSet(address indexed recipient);
+    event Harvested(uint256 yield, uint256 feeShares);
 
     // ═══════════════════════════════════════════════════════════════
     //  Errors
@@ -97,23 +105,26 @@ contract YieldVault is ERC4626, Ownable {
     //  Constructor
     // ═══════════════════════════════════════════════════════════════
 
-    /// @param asset_     The underlying token (e.g., USDHL)
-    /// @param name_      Vault share token name (e.g., "Yield USDHL")
-    /// @param symbol_    Vault share token symbol (e.g., "yUSDHL")
-    /// @param owner_     Admin who can add protocols, emergency withdraw
-    /// @param allocator_ Address authorized to reallocate (AI agent)
+    /// @param asset_        The underlying token (e.g., USDHL)
+    /// @param name_         Vault share token name (e.g., "Yield USDHL")
+    /// @param symbol_       Vault share token symbol (e.g., "yUSDHL")
+    /// @param owner_        Admin who can add protocols, emergency withdraw
+    /// @param allocator_    Address authorized to reallocate (AI agent)
+    /// @param feeRecipient_ Address that receives 10% management fee as vault shares
     constructor(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         address owner_,
-        address allocator_
+        address allocator_,
+        address feeRecipient_
     )
         ERC20(name_, symbol_)
         ERC4626(asset_)
         Ownable(owner_)
     {
         allocator = allocator_;
+        feeRecipient = feeRecipient_;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -154,6 +165,36 @@ contract YieldVault is ERC4626, Ownable {
     function setAllocator(address newAllocator) external onlyOwner {
         allocator = newAllocator;
         emit AllocatorSet(newAllocator);
+    }
+
+    /// @notice Update the fee recipient address
+    function setFeeRecipient(address newRecipient) external onlyOwner {
+        feeRecipient = newRecipient;
+        emit FeeRecipientSet(newRecipient);
+    }
+
+    /// @notice Collect 10% of yield earned since last harvest as vault shares
+    /// @dev    Mints new shares to feeRecipient proportional to the fee amount
+    function harvest() external auth {
+        uint256 currentTotal = totalAssets();
+        if (currentTotal <= lastTotalAssets) {
+            lastTotalAssets = currentTotal;
+            return; // No yield to collect
+        }
+
+        uint256 yield_ = currentTotal - lastTotalAssets;
+        uint256 feeAssets = (yield_ * FEE_BPS) / BPS; // 10%
+
+        if (feeAssets > 0 && feeRecipient != address(0)) {
+            // Mint vault shares worth `feeAssets` to feeRecipient
+            uint256 feeShares = convertToShares(feeAssets);
+            if (feeShares > 0) {
+                _mint(feeRecipient, feeShares);
+                emit Harvested(yield_, feeShares);
+            }
+        }
+
+        lastTotalAssets = currentTotal;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -197,6 +238,9 @@ contract YieldVault is ERC4626, Ownable {
         // Standard ERC4626: pull tokens from caller, mint shares to receiver
         super._deposit(caller, receiver, assets, shares);
 
+        // Track deposit in fee snapshot so new deposits don't count as yield
+        lastTotalAssets += assets;
+
         // If we have an active protocol, deploy the capital immediately
         if (protocols.length > 0 && protocols[activeIndex].active) {
             _supplyTo(activeIndex, assets);
@@ -214,6 +258,13 @@ contract YieldVault is ERC4626, Ownable {
     ) internal override {
         _ensureIdle(assets);
         super._withdraw(caller, receiver, _owner, assets, shares);
+
+        // Adjust fee snapshot so withdrawals don't appear as negative yield
+        if (assets <= lastTotalAssets) {
+            lastTotalAssets -= assets;
+        } else {
+            lastTotalAssets = 0;
+        }
     }
 
     /// @dev Pull tokens from protocols until we have `needed` idle balance

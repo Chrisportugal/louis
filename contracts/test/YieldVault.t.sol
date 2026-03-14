@@ -142,6 +142,7 @@ contract YieldVaultTest is Test {
 
     address owner = address(this);
     address allocator = address(0xA110);
+    address feeRecipient = address(0xFEE);
     address user = address(0xBEEF);
     address user2 = address(0xCAFE);
 
@@ -167,7 +168,8 @@ contract YieldVaultTest is Test {
             "Yield USDHL",
             "yUSDHL",
             owner,
-            allocator
+            allocator,
+            feeRecipient
         );
 
         // Register Aave V3 protocols
@@ -558,7 +560,8 @@ contract YieldVaultTest is Test {
             "Fresh",
             "FRESH",
             owner,
-            allocator
+            allocator,
+            feeRecipient
         );
 
         token.mint(address(0xDEAD), 100e6);
@@ -579,6 +582,98 @@ contract YieldVaultTest is Test {
     function test_invalid_index_reverts() public {
         vm.expectRevert(YieldVault.InvalidIndex.selector);
         vault.toggleProtocol(999, true);
+    }
+
+    // ─── Cross-Protocol Full Lifecycle ───
+
+    // ─── Fee Tests ───
+
+    function test_harvest_collects_fee() public {
+        // Deposit 1000 USDHL
+        vm.prank(user);
+        vault.deposit(1000e6, user);
+
+        // Simulate 100 USDHL interest (10%)
+        token.mint(address(pool1), 100e6);
+        pool1.accrueInterest(address(vault), 100e6);
+
+        assertEq(vault.totalAssets(), 1100e6, "Total with interest");
+
+        // Harvest — should mint fee shares worth 10% of 100 = 10 USDHL
+        vault.harvest();
+
+        uint256 feeShares = vault.balanceOf(feeRecipient);
+        assertGt(feeShares, 0, "Fee recipient should have shares");
+
+        uint256 feeAssets = vault.convertToAssets(feeShares);
+        assertApproxEqAbs(feeAssets, 10e6, 0.1e6, "Fee should be ~10 USDHL");
+    }
+
+    function test_harvest_no_yield_no_fee() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        // Harvest with no yield
+        vault.harvest();
+
+        assertEq(vault.balanceOf(feeRecipient), 0, "No fee when no yield");
+    }
+
+    function test_harvest_only_auth() public {
+        vm.prank(user);
+        vault.deposit(100e6, user);
+
+        vm.prank(user); // not allocator or owner
+        vm.expectRevert(YieldVault.Unauthorized.selector);
+        vault.harvest();
+    }
+
+    function test_setFeeRecipient() public {
+        address newRecipient = address(0x1234);
+        vault.setFeeRecipient(newRecipient);
+        assertEq(vault.feeRecipient(), newRecipient);
+    }
+
+    function test_setFeeRecipient_only_owner() public {
+        vm.prank(allocator);
+        vm.expectRevert();
+        vault.setFeeRecipient(address(0x9999));
+    }
+
+    function test_harvest_deposit_doesnt_count_as_yield() public {
+        // Deposit 500
+        vm.prank(user);
+        vault.deposit(500e6, user);
+
+        // Another deposit of 500
+        vm.prank(user2);
+        vault.deposit(500e6, user2);
+
+        // Harvest — no interest earned, just new deposits
+        vault.harvest();
+
+        assertEq(vault.balanceOf(feeRecipient), 0, "No fee on deposits");
+    }
+
+    function test_harvest_multiple_rounds() public {
+        vm.prank(user);
+        vault.deposit(1000e6, user);
+
+        // Round 1: 50 USDHL interest
+        token.mint(address(pool1), 50e6);
+        pool1.accrueInterest(address(vault), 50e6);
+        vault.harvest();
+        uint256 feeAfter1 = vault.convertToAssets(vault.balanceOf(feeRecipient));
+
+        // Round 2: another 50 USDHL interest
+        token.mint(address(pool1), 50e6);
+        pool1.accrueInterest(address(vault), 50e6);
+        vault.harvest();
+        uint256 feeAfter2 = vault.convertToAssets(vault.balanceOf(feeRecipient));
+
+        assertGt(feeAfter2, feeAfter1, "Fee should grow with more harvests");
+        // Total yield = 100, total fee should be ~10 USDHL (with share dilution rounding)
+        assertApproxEqAbs(feeAfter2, 10e6, 0.2e6, "Total fee ~10 USDHL");
     }
 
     // ─── Cross-Protocol Full Lifecycle ───
