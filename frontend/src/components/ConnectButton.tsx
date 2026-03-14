@@ -3,9 +3,10 @@ import { useAccount, useConnect, useDisconnect } from 'wagmi'
 
 export function ConnectButton() {
   const { address, isConnected } = useAccount()
-  const { connect, connectors } = useConnect()
+  const { connect, connectors, isPending } = useConnect()
   const { disconnect } = useDisconnect()
   const [showOptions, setShowOptions] = useState(false)
+  const [connectError, setConnectError] = useState<string | null>(null)
 
   if (isConnected && address) {
     return (
@@ -15,44 +16,70 @@ export function ConnectButton() {
     )
   }
 
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+  const handleConnector = (connector: (typeof connectors)[number]) => {
+    setConnectError(null)
+    setShowOptions(false)
+    connect(
+      { connector },
+      {
+        onError: (err) => {
+          console.error('Connect error:', err)
+          setConnectError('Connection failed. Try again.')
+          setTimeout(() => setConnectError(null), 4000)
+        },
+      }
+    )
+  }
+
   const handleConnect = () => {
-    // If only one connector available (or on mobile), try the best one
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    setConnectError(null)
 
     if (isMobile) {
-      // On mobile, prefer WalletConnect (shows QR or deeplinks to wallet apps)
+      // On mobile, try WalletConnect directly (opens deep links to wallet apps)
       const wc = connectors.find(c => c.id === 'walletConnect')
       if (wc) {
-        connect({ connector: wc })
+        handleConnector(wc)
+        return
+      }
+      // Fallback: try injected (works if user is inside a wallet browser)
+      const inj = connectors.find(c => c.id === 'injected')
+      if (inj) {
+        handleConnector(inj)
         return
       }
     }
 
-    // On desktop with multiple connectors, show options
-    if (connectors.length > 1) {
-      setShowOptions(!showOptions)
-    } else if (connectors[0]) {
-      connect({ connector: connectors[0] })
-    }
+    // Desktop: show connector picker
+    setShowOptions(!showOptions)
   }
 
   return (
     <div style={{ position: 'relative' }}>
-      <button className="connect-btn" onClick={handleConnect}>
-        Connect Wallet
+      <button
+        className="connect-btn"
+        onClick={handleConnect}
+        disabled={isPending}
+      >
+        {isPending ? 'Connecting...' : 'Connect Wallet'}
       </button>
-      {showOptions && (
+
+      {connectError && (
+        <div className="wallet-error">{connectError}</div>
+      )}
+
+      {showOptions && !isPending && (
         <div className="wallet-options">
           {connectors.map((connector) => (
             <button
-              key={connector.id}
+              key={connector.uid}
               className="wallet-option"
-              onClick={() => {
-                connect({ connector })
-                setShowOptions(false)
-              }}
+              onClick={() => handleConnector(connector)}
             >
-              {connector.id === 'injected' ? 'Browser Wallet' : connector.name}
+              {connector.id === 'injected'
+                ? '🦊 Browser Wallet'
+                : `🔗 ${connector.name}`}
             </button>
           ))}
         </div>

@@ -14,12 +14,14 @@ export const hyperEVM = defineChain({
   },
 })
 
+const projectId = 'b3c30124964e3738c82e7bfad2e1eec7'
+
 export const config = createConfig({
   chains: [hyperEVM],
   connectors: [
     injected(),
     walletConnect({
-      projectId: 'b3c30124964e3738c82e7bfad2e1eec7',
+      projectId,
       metadata: {
         name: 'Louis',
         description: 'AI Yield Agent on HyperEVM',
@@ -27,6 +29,9 @@ export const config = createConfig({
         icons: ['https://louisxyz.vercel.app/favicon.ico'],
       },
       showQrModal: true,
+      qrModalOptions: {
+        themeMode: 'dark' as const,
+      },
     }),
   ],
   transports: {
