@@ -3,8 +3,10 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { parseUnits, formatUnits, maxUint256 } from 'viem'
 import { ADDRESSES, ERC20_ABI, VAULT_ABI, ROUTER_ABI, DEPOSIT_TOKENS } from '../config/contracts'
 import type { TokenInfo } from '../config/contracts'
+import { SOURCE_CHAINS, USDC_BY_CHAIN } from '../config/wagmi'
 import { useVaultData } from '../hooks/useVaultData'
 import { useSwapQuote } from '../hooks/useSwapQuote'
+import { useBridgeQuote } from '../hooks/useBridgeQuote'
 
 type DepositStep = 'approve' | 'approveUsdhl' | 'swap' | 'deposit' | 'done'
 
@@ -19,6 +21,14 @@ export function VaultCard() {
   const lastHandledHash = useRef<string | null>(null)
   const vaultData = useVaultData()
   const swap = useSwapQuote(selectedToken, amount)
+
+  // Cross-chain bridge state
+  const [selectedChain, setSelectedChain] = useState(999)
+  const [showChainList, setShowChainList] = useState(false)
+  const isBridging = selectedChain !== 999
+  const isSolana = selectedChain === -1
+  const chainName = SOURCE_CHAINS.find(c => c.id === selectedChain)?.name || 'HyperEVM'
+  const bridgeQuote = useBridgeQuote(selectedChain, amount)
 
   // Read selected token balance
   const { data: tokenBalance } = useReadContract({
@@ -263,6 +273,28 @@ export function VaultCard() {
     setDepositStep(null)
   }
 
+  const handleSelectChain = (chainId: number) => {
+    setSelectedChain(chainId)
+    setShowChainList(false)
+    setAmount('')
+    setError(null)
+    setDepositStep(null)
+    if (chainId === 999) setSelectedToken(DEPOSIT_TOKENS[0])
+  }
+
+  const handleBridgeDeposit = () => {
+    if (!amount || parseFloat(amount) <= 0) return
+    if (isSolana) {
+      const url = `https://app.debridge.com/?inputChain=7565164&outputChain=999&inputCurrency=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputCurrency=0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5&amount=${amount}&dlnMode=simple`
+      window.open(url, '_blank')
+    } else {
+      const inputToken = USDC_BY_CHAIN[selectedChain]
+      const rawAmount = BigInt(Math.floor(parseFloat(amount) * 1e6)).toString()
+      const url = `https://app.across.to/bridge?inputToken=${inputToken}&outputToken=0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5&destinationChainId=999&originChainId=${selectedChain}&amount=${rawAmount}`
+      window.open(url, '_blank')
+    }
+  }
+
   const depositAmount = swap.needsSwap ? swap.expectedOut : parsedAmount
   const annualYield = depositAmount > 0n && vaultData.totalApy
     ? (parseFloat(formatUnits(depositAmount, 6)) * vaultData.totalApy / 100).toFixed(2)
@@ -325,13 +357,41 @@ export function VaultCard() {
         </button>
       </div>
 
+      {/* Source Chain Selector — deposit mode only */}
+      {mode === 'deposit' && (
+        <div className="chain-selector-group">
+          <div className="input-header">
+            <span className="input-label">From</span>
+          </div>
+          <div className="chain-selector" onClick={() => !isWorking && setShowChainList(!showChainList)}>
+            <span className="chain-name">{chainName}</span>
+            <span className="token-arrow">{showChainList ? '\u25B2' : '\u25BC'}</span>
+            {showChainList && (
+              <div className="chain-dropdown">
+                {SOURCE_CHAINS.map((chain) => (
+                  <div
+                    key={chain.id}
+                    className={`chain-option ${chain.id === selectedChain ? 'selected' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); handleSelectChain(chain.id) }}
+                  >
+                    {chain.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="input-group">
         <div className="input-header">
-          <span className="input-label">Amount</span>
-          <span className="input-balance">
-            Balance: {parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {mode === 'deposit' ? selectedToken.symbol : 'louisUSD'}
-          </span>
+          <span className="input-label">{isBridging ? 'Amount (USDC)' : 'Amount'}</span>
+          {!isBridging && (
+            <span className="input-balance">
+              Balance: {parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {mode === 'deposit' ? selectedToken.symbol : 'louisUSD'}
+            </span>
+          )}
         </div>
         <div className="input-wrapper">
           <input
@@ -341,28 +401,32 @@ export function VaultCard() {
             onChange={(e) => { setAmount(e.target.value); setError(null); setDepositStep(null) }}
             min="0"
             step="0.01"
-            disabled={isWorking}
+            disabled={isWorking && !isBridging}
           />
           <div className="input-right">
-            <button className="max-btn" onClick={handleMax} disabled={isWorking}>MAX</button>
+            {!isBridging && <button className="max-btn" onClick={handleMax} disabled={isWorking}>MAX</button>}
             {mode === 'deposit' ? (
-              <div className="token-selector" onClick={() => !isWorking && setShowTokenList(!showTokenList)}>
-                <span className="token-badge clickable">{selectedToken.symbol}</span>
-                <span className="token-arrow">{showTokenList ? '\u25B2' : '\u25BC'}</span>
-                {showTokenList && (
-                  <div className="token-dropdown">
-                    {DEPOSIT_TOKENS.map((t) => (
-                      <div
-                        key={t.symbol}
-                        className={`token-option ${t.symbol === selectedToken.symbol ? 'selected' : ''}`}
-                        onClick={(e) => { e.stopPropagation(); handleSelectToken(t) }}
-                      >
-                        {t.symbol}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              isBridging ? (
+                <span className="token-badge">USDC</span>
+              ) : (
+                <div className="token-selector" onClick={() => !isWorking && setShowTokenList(!showTokenList)}>
+                  <span className="token-badge clickable">{selectedToken.symbol}</span>
+                  <span className="token-arrow">{showTokenList ? '\u25B2' : '\u25BC'}</span>
+                  {showTokenList && (
+                    <div className="token-dropdown">
+                      {DEPOSIT_TOKENS.map((t) => (
+                        <div
+                          key={t.symbol}
+                          className={`token-option ${t.symbol === selectedToken.symbol ? 'selected' : ''}`}
+                          onClick={(e) => { e.stopPropagation(); handleSelectToken(t) }}
+                        >
+                          {t.symbol}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
             ) : (
               <span className="token-badge">louisUSD</span>
             )}
@@ -370,11 +434,53 @@ export function VaultCard() {
         </div>
       </div>
 
-      {/* Swap estimate */}
-      {mode === 'deposit' && swap.needsSwap && swap.expectedOut > 0n && (
+      {/* Swap estimate (HyperEVM only) */}
+      {mode === 'deposit' && !isBridging && swap.needsSwap && swap.expectedOut > 0n && (
         <div className="swap-estimate">
           <span>Estimated deposit</span>
           <span className="swap-value">~${parseFloat(formatUnits(swap.expectedOut, 6)).toFixed(2)}</span>
+        </div>
+      )}
+
+      {/* Bridge estimate (cross-chain) */}
+      {mode === 'deposit' && isBridging && !isSolana && amount && parseFloat(amount) > 0 && (
+        bridgeQuote.loading ? (
+          <div className="bridge-estimate">
+            <span className="bridge-loading">Fetching bridge quote...</span>
+          </div>
+        ) : bridgeQuote.error ? (
+          <div className="bridge-estimate error">
+            <span>{bridgeQuote.error}</span>
+          </div>
+        ) : bridgeQuote.outputAmount > 0n ? (
+          <div className="bridge-estimate">
+            <div className="bridge-row">
+              <span>You'll receive</span>
+              <span className="bridge-value">~{parseFloat(formatUnits(bridgeQuote.outputAmount, 6)).toFixed(2)} USDHL</span>
+            </div>
+            <div className="bridge-row">
+              <span>Bridge fee</span>
+              <span>~${parseFloat(formatUnits(bridgeQuote.totalFee, 6)).toFixed(2)}</span>
+            </div>
+            <div className="bridge-row">
+              <span>Est. time</span>
+              <span>{bridgeQuote.estimatedTime < 60 ? `~${bridgeQuote.estimatedTime}s` : `~${Math.ceil(bridgeQuote.estimatedTime / 60)} min`}</span>
+            </div>
+          </div>
+        ) : null
+      )}
+
+      {/* Solana bridge info */}
+      {mode === 'deposit' && isSolana && amount && parseFloat(amount) > 0 && (
+        <div className="bridge-estimate">
+          <div className="bridge-row">
+            <span>Bridge via deBridge</span>
+            <span className="bridge-value">USDC → USDHL</span>
+          </div>
+          <div className="bridge-row">
+            <span>Destination</span>
+            <span>HyperEVM</span>
+          </div>
         </div>
       )}
 
@@ -394,7 +500,15 @@ export function VaultCard() {
       )}
 
       {/* Action Button */}
-      {isConnected ? (
+      {isBridging ? (
+        <button
+          className="action-btn"
+          onClick={handleBridgeDeposit}
+          disabled={!amount || parseFloat(amount) <= 0}
+        >
+          {isSolana ? 'Bridge via deBridge' : 'Bridge via Across'}
+        </button>
+      ) : isConnected ? (
         <button
           className="action-btn"
           onClick={mode === 'withdraw' ? handleWithdraw : handleDeposit}

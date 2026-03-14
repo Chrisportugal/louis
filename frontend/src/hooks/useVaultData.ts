@@ -36,7 +36,7 @@ async function fetchFelixVaults(): Promise<ProtocolYield[]> {
         address
         name
         asset { symbol }
-        state { totalAssetsUsd netApy }
+        state { totalAssetsUsd netApy apy }
       }
     }
   }`
@@ -52,13 +52,19 @@ async function fetchFelixVaults(): Promise<ProtocolYield[]> {
 
     return vaults
       .filter((v: any) => v.asset?.symbol?.toLowerCase().includes('usd'))
-      .slice(0, 5)
-      .map((v: any) => ({
-        name: v.name || 'Felix Vault',
-        apy: (v.state?.netApy ?? 0) * 100,
-        tvl: v.state?.totalAssetsUsd ?? 0,
-        type: 'erc4626' as const,
-      }))
+      .slice(0, 8)
+      .map((v: any) => {
+        // Use the higher of gross apy and netApy — netApy deducts Morpho curator fees
+        // which makes Felix vaults look lower than what users actually see on Felix UI
+        const netApy = (v.state?.netApy ?? 0) * 100
+        const grossApy = (v.state?.apy ?? 0) * 100
+        return {
+          name: v.name || 'Felix Vault',
+          apy: Math.max(netApy, grossApy),
+          tvl: v.state?.totalAssetsUsd ?? 0,
+          type: 'erc4626' as const,
+        }
+      })
   } catch {
     return []
   }

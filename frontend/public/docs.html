@@ -160,6 +160,7 @@
       <a href="#how-it-works"><svg class="ico" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>How It Works</a>
       <a href="#protocols"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>Protocols</a>
       <a href="#points"><svg class="ico" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Points</a>
+      <a href="#bridge"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12h16M4 12l4-4M4 12l4 4M20 12l-4-4M20 12l-4 4"/></svg>Bridge</a>
       <a href="#fees"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Fees</a>
       <a href="#risks"><svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Risks</a>
     </div>
@@ -198,7 +199,7 @@
 
     <h2 id="how-it-works">How It Works</h2>
     <ol>
-      <li><strong>Deposit</strong> &mdash; Deposit USDC, USDT, or other supported stablecoins. The vault handles any necessary conversions. You receive <code>louisUSD</code> share tokens representing your position.</li>
+      <li><strong>Deposit</strong> &mdash; Deposit USDC, USDT, or other stablecoins from HyperEVM &mdash; or bridge USDC from Ethereum, Base, Arbitrum, BNB Chain, or Solana. The vault handles any necessary conversions. You receive <code>louisUSD</code> share tokens representing your position.</li>
       <li><strong>AI Allocates</strong> &mdash; The AI agent monitors APYs across all integrated lending protocols and allocates your deposit to the best one.</li>
       <li><strong>Auto-Rebalance</strong> &mdash; Every 30 minutes, the agent checks for better opportunities. If it finds one with &gt;0.5% higher APY, it moves funds automatically.</li>
       <li><strong>Withdraw Anytime</strong> &mdash; Redeem your <code>louisUSD</code> shares for the underlying stablecoins at any time. No lock-up period.</li>
@@ -251,6 +252,31 @@
         <tr><td><strong>Felix Protocol</strong></td><td><span class="badge badge-erc4626">ERC-4626</span></td><td>MetaMorpho vaults &mdash; two strategies: Frontier (higher APY, curated markets) and USDhl (conservative, broader allocation)</td></tr>
       </tbody>
     </table>
+
+    <h2 id="bridge">Cross-Chain Deposits</h2>
+    <p>
+      Louis supports deposits from any chain. Select your source chain in the deposit card to bridge
+      USDC into USDHL on HyperEVM, then deposit into the vault.
+    </p>
+    <table>
+      <thead><tr><th>Source Chains</th><th>Bridge Provider</th><th>Route</th></tr></thead>
+      <tbody>
+        <tr><td>Ethereum, Base, Arbitrum, BNB Chain</td><td><a href="https://across.to" target="_blank">Across Protocol</a></td><td>USDC &rarr; USDHL on HyperEVM</td></tr>
+        <tr><td>Solana</td><td><a href="https://debridge.com" target="_blank">deBridge (DLN)</a></td><td>USDC &rarr; USDHL on HyperEVM</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>How it works:</strong> In the deposit card, select your source chain from the dropdown. Enter the amount of USDC you want to bridge. You'll see a live quote with the bridge fee and estimated time. Click "Bridge via Across" or "Bridge via deBridge" to complete the transfer. Your USDHL arrives on HyperEVM and you can then deposit into the vault.
+    </div>
+    <h3>Supported Chains</h3>
+    <ul>
+      <li><strong>HyperEVM</strong> (direct) &mdash; Deposit USDC, USDT, or USDHL directly. HyperSwap handles any swaps.</li>
+      <li><strong>Ethereum</strong> &mdash; Bridge USDC via Across (~2-5 min)</li>
+      <li><strong>Base</strong> &mdash; Bridge USDC via Across (~1-3 min)</li>
+      <li><strong>Arbitrum</strong> &mdash; Bridge USDC via Across (~1-3 min)</li>
+      <li><strong>BNB Chain</strong> &mdash; Bridge USDC via Across (~2-5 min)</li>
+      <li><strong>Solana</strong> &mdash; Bridge USDC via deBridge (~1-5 min)</li>
+    </ul>
 
     <h2 id="points">Points</h2>
     <p>

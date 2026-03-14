@@ -5,7 +5,6 @@ import { config } from './config/wagmi'
 import { ConnectButton } from './components/ConnectButton'
 import { VaultCard } from './components/VaultCard'
 import { PointsCard } from './components/PointsCard'
-import { BridgeCard } from './components/BridgeCard'
 import { DisclaimerModal } from './components/DisclaimerModal'
 import './App.css'
 
@@ -76,7 +75,6 @@ function App() {
                 </p>
               </div>
               <VaultCard />
-              <BridgeCard />
             </main>
           )}
 
