@@ -68,7 +68,7 @@ export function PointsCard() {
       ctx.fillText(`League: `, 60, 230)
       ctx.fillStyle = league.color
       ctx.font = 'bold 13px Inter, sans-serif'
-      ctx.fillText(`${league.icon} ${league.name}`, 115, 230)
+      ctx.fillText(league.name, 115, 230)
 
       ctx.fillStyle = '#8b8fa3'
       ctx.font = '13px Inter, sans-serif'
@@ -147,12 +147,9 @@ export function PointsCard() {
         {/* League */}
         <div className="points-card">
           <span className="points-card-label">League</span>
-          <div className="points-card-league">
-            <span className="points-league-icon">{league.icon}</span>
-            <span className="points-card-value" style={{ color: league.color }}>
-              {league.name}
-            </span>
-          </div>
+          <span className="points-card-value" style={{ color: league.color }}>
+            {league.name}
+          </span>
         </div>
       </div>
 
@@ -185,8 +182,8 @@ export function PointsCard() {
       {nextLeague && (
         <div className="points-progress-section">
           <div className="points-progress-label">
-            <span>{league.icon} {league.name}</span>
-            <span>{nextLeague.icon} {nextLeague.name} ({nextLeague.minPoints.toLocaleString()} pts)</span>
+            <span>{league.name}</span>
+            <span>{nextLeague.name} ({nextLeague.minPoints.toLocaleString()} pts)</span>
           </div>
           <div className="points-progress-bar">
             <div
@@ -213,14 +210,12 @@ export function PointsCard() {
         <div className="points-tge-title">At TGE</div>
         <div className="points-tge-options">
           <div className="points-tge-option">
-            <span className="tge-option-icon">🔄</span>
             <div>
               <strong>Convert to $LOUIS</strong>
               <span className="tge-option-desc">Redeem your points for tokens at a fixed ratio</span>
             </div>
           </div>
           <div className="points-tge-option">
-            <span className="tge-option-icon">🛡️</span>
             <div>
               <strong>Put Option</strong>
               <span className="tge-option-desc">Guaranteed floor price — protection if token drops</span>
@@ -244,7 +239,7 @@ export function PointsCard() {
             {formatPoints(points)}
           </span>
           <div className="points-share-footer">
-            <span>League: <strong style={{ color: league.color }}>{league.icon} {league.name}</strong></span>
+            <span>League: <strong style={{ color: league.color }}>{league.name}</strong></span>
           </div>
         </div>
         <button className="points-save-btn" onClick={handleSaveImage}>
@@ -259,7 +254,6 @@ export function PointsCard() {
             key={l.name}
             className={`points-league-item ${l.name === league.name ? 'active' : ''}`}
           >
-            <span className="points-league-badge">{l.icon}</span>
             <span className="points-league-name" style={{ color: l.name === league.name ? l.color : undefined }}>
               {l.name}
             </span>

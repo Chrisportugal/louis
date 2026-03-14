@@ -6,17 +6,16 @@ import { ADDRESSES, VAULT_ABI } from '../config/contracts'
 // ─── Leagues ───
 export interface League {
   name: string
-  icon: string
   minPoints: number
   color: string
 }
 
 export const LEAGUES: League[] = [
-  { name: 'Wood',     icon: '🪵', minPoints: 0,       color: '#8B6914' },
-  { name: 'Bronze',   icon: '🥉', minPoints: 100,     color: '#CD7F32' },
-  { name: 'Silver',   icon: '🥈', minPoints: 1_000,   color: '#C0C0C0' },
-  { name: 'Gold',     icon: '🥇', minPoints: 10_000,  color: '#FFD700' },
-  { name: 'Platinum', icon: '💎', minPoints: 100_000, color: '#7DF9FF' },
+  { name: 'Wood',     minPoints: 0,       color: '#8B6914' },
+  { name: 'Bronze',   minPoints: 100,     color: '#CD7F32' },
+  { name: 'Silver',   minPoints: 1_000,   color: '#C0C0C0' },
+  { name: 'Gold',     minPoints: 10_000,  color: '#FFD700' },
+  { name: 'Platinum', minPoints: 100_000, color: '#7DF9FF' },
 ]
 
 export function getLeague(points: number): League {
