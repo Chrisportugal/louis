@@ -49,7 +49,7 @@ function App() {
 
           <main className="main">
             <div className="hero">
-              <h1 className="hero-title">Yield Agent on HyperEVM</h1>
+              <h1 className="hero-title">AI Yield Agent on HyperEVM</h1>
               <p className="hero-sub">
                 Deposit stablecoins. The vault routes to the best
                 yield opportunities on HyperEVM.

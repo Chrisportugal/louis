@@ -155,6 +155,7 @@
     </div>
     <div class="sidebar-section">
       <div class="sidebar-title">Developers</div>
+      <a href="#sdk">SDK</a>
       <a href="#addresses">Addresses</a>
       <a href="#deployment">Deployment</a>
       <a href="#agent">AI Agent</a>
@@ -356,6 +357,65 @@ protocolCount() -> uint256</code></pre>
 
     <span class="section-divider">Developers</span>
 
+    <h2 id="sdk">SDK — Integrate Louis</h2>
+    <p>Use the Louis SDK to add vault deposits/withdrawals to any frontend or protocol. Built on <a href="https://viem.sh" target="_blank">viem</a>.</p>
+
+    <pre><code>npm install viem</code></pre>
+
+    <h3>Read Vault Data (no wallet needed)</h3>
+    <pre><code>import { LouisSDK } from './sdk'
+
+const louis = new LouisSDK()
+
+// Get total vault TVL
+const tvl = await louis.totalAssets()
+console.log(`TVL: $${tvl}`)
+
+// Get full vault state with protocol allocations
+const state = await louis.getVaultState()
+console.log(state.protocols)
+
+// Get a user's position
+const pos = await louis.getUserPosition('0xUSER...')
+console.log(`Shares: ${pos.shares}, Value: $${pos.assets}`)</code></pre>
+
+    <h3>Deposit (with wallet)</h3>
+    <pre><code>import { LouisSDK, ADDRESSES } from './sdk'
+import { createWalletClient, custom } from 'viem'
+
+// Connect user's wallet (e.g. from Rabby, MetaMask)
+const walletClient = createWalletClient({
+  transport: custom(window.ethereum),
+})
+
+const louis = new LouisSDK({ walletClient })
+
+// Direct USDHL deposit
+await louis.approve(ADDRESSES.USDHL, ADDRESSES.VAULT, '100')
+await louis.deposit('100', userAddress)
+
+// Or deposit USDC/USDT (auto-swaps to USDHL)
+const txs = await louis.zapDeposit(ADDRESSES.USDC, '100', userAddress)
+// Returns tx hashes for each step: approve → swap → approve → deposit</code></pre>
+
+    <h3>Withdraw</h3>
+    <pre><code>// Withdraw by asset amount
+await louis.withdraw('50', userAddress, userAddress)
+
+// Or redeem all shares
+const pos = await louis.getUserPosition(userAddress)
+await louis.redeem(pos.shares, userAddress, userAddress)</code></pre>
+
+    <h3>Get Swap Quote</h3>
+    <pre><code>const quote = await louis.getSwapQuote(ADDRESSES.USDC, '1000')
+console.log(`Expected: ${quote.expectedOutput} USDHL`)
+console.log(`Min (0.5% slippage): ${quote.minimumOutput} USDHL`)
+console.log(`Price impact: ${quote.priceImpact}%`)</code></pre>
+
+    <div class="callout">
+      <strong>Integration example:</strong> To add Louis to a protocol like Harmonix, import the SDK, call <code>louis.getVaultState()</code> to show TVL/APY, and use <code>louis.zapDeposit()</code> to let users deposit from any stablecoin.
+    </div>
+
     <h2 id="addresses">Contract Addresses</h2>
     <table>
       <thead><tr><th>Contract</th><th>Address</th></tr></thead>
@@ -382,32 +442,54 @@ npm install && forge install
 # Run tests (54 passing)
 forge test -v
 
-# Deploy vault
-PRIVATE_KEY=0x... forge script contracts/script/Deploy.s.sol \
-  --rpc-url https://rpc.hyperliquid.xyz/evm \
-  --broadcast --legacy --with-gas-price 1000000000 --slow
-
-# Register protocols
-PRIVATE_KEY=0x... VAULT=0x... forge script contracts/script/Setup.s.sol \
-  --rpc-url https://rpc.hyperliquid.xyz/evm \
-  --broadcast --legacy --with-gas-price 1000000000 --slow
-
 # Start frontend
 cd frontend && npm run dev</code></pre>
+    <p>See the <a href="https://github.com/Chrisportugal/louis" target="_blank">GitHub repo</a> for full deployment instructions.</p>
 
     <h2 id="agent">AI Agent</h2>
-    <p>The yield agent runs as a standalone TypeScript process. It monitors APYs, rebalances, and harvests fees automatically.</p>
-    <pre><code># Live mode (executes real transactions)
+    <div class="callout-green callout">
+      <strong>Status: Live ✅</strong> The agent runs 24/7 on a dedicated server, checking yields every 30 minutes.
+    </div>
+    <p>The yield agent is a standalone TypeScript process that monitors APYs across all integrated protocols, rebalances to the highest yield, and harvests fees automatically.</p>
+
+    <h3>How It Works</h3>
+    <ol>
+      <li>Every 30 minutes, fetches live APYs from on-chain data + Morpho API</li>
+      <li>Compares current protocol yield against the best available</li>
+      <li>If a better protocol exceeds the current by &gt;0.5%, calls <code>reallocate()</code></li>
+      <li>If accumulated yield exceeds $1, calls <code>harvest()</code> to collect fees</li>
+    </ol>
+
+    <h3>Security Model</h3>
+    <p>The agent uses a <strong>dedicated wallet</strong> separate from the vault owner. This wallet can only:</p>
+    <ul>
+      <li><code>reallocate()</code> — Move funds between already-approved protocols</li>
+      <li><code>setActiveIndex()</code> — Change which protocol receives new deposits</li>
+      <li><code>harvest()</code> — Collect management fees</li>
+    </ul>
+    <p>It <strong>cannot</strong> add/remove protocols, pause the vault, emergency withdraw, or access user funds. Even if the server is compromised, the worst case is funds moving between legitimate protocols.</p>
+
+    <h3>Running Your Own</h3>
+    <pre><code># Dry run (logs what it would do, no transactions)
+PRIVATE_KEY=0x... DRY_RUN=1 npx tsx src/agent.ts
+
+# Live mode
 PRIVATE_KEY=0x... npx tsx src/agent.ts
 
-# Dry run (logs what it would do, no transactions)
-PRIVATE_KEY=0x... DRY_RUN=1 npx tsx src/agent.ts</code></pre>
-    <p>Configuration (in <code>src/agent.ts</code>):</p>
-    <ul>
-      <li><strong>Interval:</strong> 30 minutes between cycles</li>
-      <li><strong>Rebalance threshold:</strong> &gt;0.5% APY difference to trigger reallocation</li>
-      <li><strong>Harvest threshold:</strong> &gt;$1 accumulated yield to trigger fee collection</li>
-    </ul>
+# Run 24/7 with pm2
+npm install -g pm2
+PRIVATE_KEY=0x... pm2 start "npx tsx src/agent.ts" --name louis-agent
+pm2 save && pm2 startup</code></pre>
+
+    <h3>Configuration</h3>
+    <table>
+      <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Check interval</td><td>30 minutes</td></tr>
+        <tr><td>Rebalance threshold</td><td>&gt;0.5% APY difference</td></tr>
+        <tr><td>Harvest threshold</td><td>&gt;$1 accumulated yield</td></tr>
+      </tbody>
+    </table>
 
   </main>
 </div>
