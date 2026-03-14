@@ -172,13 +172,27 @@ export function VaultCard() {
   const handleWithdraw = () => {
     if (!address) return
     setError(null)
-    const withdrawAmount = parseUnits(amount, 6)
-    writeContract({
-      address: ADDRESSES.VAULT,
-      abi: VAULT_ABI,
-      functionName: 'withdraw',
-      args: [withdrawAmount, address, address],
-    })
+
+    // If withdrawing full balance, use redeem(shares) to avoid rounding revert
+    const isMax = vaultShares && vaultAssets &&
+      parseFloat(amount) >= parseFloat(formatUnits(vaultAssets, 6)) * 0.999
+
+    if (isMax && vaultShares) {
+      writeContract({
+        address: ADDRESSES.VAULT,
+        abi: VAULT_ABI,
+        functionName: 'redeem',
+        args: [vaultShares, address, address],
+      })
+    } else {
+      const withdrawAmount = parseUnits(amount, 6)
+      writeContract({
+        address: ADDRESSES.VAULT,
+        abi: VAULT_ABI,
+        functionName: 'withdraw',
+        args: [withdrawAmount, address, address],
+      })
+    }
   }
 
   // Determine current action step
