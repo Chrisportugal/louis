@@ -99,33 +99,26 @@ export function useVaultData(): VaultData {
 
   const refresh = useCallback(async () => {
     try {
-      // Fetch Felix first (fast, small response) - show APY immediately
-      const felix = await fetchFelixVaults()
+      // Fetch both sources in parallel
+      const [felix, aave] = await Promise.all([
+        fetchFelixVaults().catch(() => []),
+        fetchAaveRates().catch(() => []),
+      ])
 
-      if (felix.length > 0) {
-        const bestApy = Math.max(...felix.map(f => f.apy))
+      const all = [...aave, ...felix].sort((a, b) => b.apy - a.apy)
+
+      if (all.length > 0) {
         setData({
-          totalApy: bestApy,
-          totalTvl: felix.reduce((sum, p) => sum + p.tvl, 0),
-          protocols: felix.sort((a, b) => b.apy - a.apy),
+          totalApy: all[0].apy,
+          totalTvl: all.reduce((sum, p) => sum + p.tvl, 0),
+          protocols: all,
           loading: false,
         })
+      } else {
+        // Both APIs failed — stop loading but keep any previous data
+        setData(prev => ({ ...prev, loading: false }))
       }
-
-      // Then fetch DefiLlama (slow, huge response) and merge
-      const aave = await fetchAaveRates()
-      const all = [...aave, ...felix].sort((a, b) => b.apy - a.apy)
-      const bestApy = all.length > 0 ? all[0].apy : 0
-      const totalTvl = all.reduce((sum, p) => sum + p.tvl, 0)
-
-      setData({
-        totalApy: bestApy,
-        totalTvl,
-        protocols: all,
-        loading: false,
-      })
     } catch {
-      // If everything fails, stop loading
       setData(prev => ({ ...prev, loading: false }))
     }
   }, [])
