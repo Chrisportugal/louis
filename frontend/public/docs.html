@@ -171,20 +171,20 @@
 
     <h1 id="overview">Louis - Yield Agent on HyperEVM</h1>
     <p>
-      Louis is an AI-powered yield allocation vault on HyperEVM. Deposit stablecoins (USDC, USDT, or USDHL),
-      and the AI agent automatically routes your capital to the highest-yielding lending protocols.
+      Louis is an AI-powered yield vault on HyperEVM. Deposit stablecoins and the vault
+      automatically allocates your capital across the highest-yielding lending protocols.
     </p>
     <div class="callout-green callout">
       <strong>Why Louis?</strong> Instead of manually comparing APYs across protocols,
-      Louis monitors rates in real-time and rebalances to capture the best risk-adjusted yields on HyperEVM.
+      Louis monitors rates in real-time and rebalances to capture the best yields on HyperEVM.
     </div>
 
     <h2 id="how-it-works">How It Works</h2>
     <ol>
-      <li><strong>Deposit</strong> &mdash; Deposit USDC, USDT, or USDHL. Non-USDHL tokens are automatically swapped via HyperSwap. You receive <code>louisUSD</code> share tokens.</li>
-      <li><strong>AI Monitors</strong> &mdash; The agent monitors APYs across all integrated lending protocols every 30 minutes.</li>
-      <li><strong>Auto-Reallocate</strong> &mdash; When a better opportunity is found (&gt;0.5% APY difference), the agent moves funds to the higher-yielding protocol.</li>
-      <li><strong>Withdraw Anytime</strong> &mdash; Redeem <code>louisUSD</code> at any time. The vault pulls funds from protocols to fulfill your withdrawal.</li>
+      <li><strong>Deposit</strong> &mdash; Deposit USDC, USDT, or other supported stablecoins. The vault handles any necessary conversions. You receive <code>louisUSD</code> share tokens representing your position.</li>
+      <li><strong>AI Allocates</strong> &mdash; The AI agent monitors APYs across all integrated lending protocols and allocates your deposit to the best one.</li>
+      <li><strong>Auto-Rebalance</strong> &mdash; Every 30 minutes, the agent checks for better opportunities. If it finds one with &gt;0.5% higher APY, it moves funds automatically.</li>
+      <li><strong>Withdraw Anytime</strong> &mdash; Redeem your <code>louisUSD</code> shares for the underlying stablecoins at any time. No lock-up period.</li>
     </ol>
 
     <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; overflow-x: auto;">
