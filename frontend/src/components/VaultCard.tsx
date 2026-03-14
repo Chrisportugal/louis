@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseUnits, formatUnits, maxUint256 } from 'viem'
 import { ADDRESSES, ERC20_ABI, VAULT_ABI, ROUTER_ABI, DEPOSIT_TOKENS } from '../config/contracts'
 import type { TokenInfo } from '../config/contracts'
 import { useVaultData } from '../hooks/useVaultData'
 import { useSwapQuote } from '../hooks/useSwapQuote'
+
+type DepositStep = 'approve' | 'approveUsdhl' | 'swap' | 'deposit' | 'done'
 
 export function VaultCard() {
   const { address, isConnected } = useAccount()
@@ -13,6 +15,8 @@ export function VaultCard() {
   const [selectedToken, setSelectedToken] = useState<TokenInfo>(DEPOSIT_TOKENS[0])
   const [showTokenList, setShowTokenList] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [depositStep, setDepositStep] = useState<DepositStep | null>(null)
+  const lastHandledHash = useRef<string | null>(null)
   const vaultData = useVaultData()
   const swap = useSwapQuote(selectedToken, amount)
 
@@ -53,13 +57,22 @@ export function VaultCard() {
     query: { enabled: !!address && mode === 'deposit', refetchInterval: 4_000 },
   })
 
-  // Read USDHL allowance for vault (needed after swap)
+  // Read USDHL allowance for vault
   const { data: usdhlAllowance, refetch: refetchUsdhlAllowance } = useReadContract({
     address: ADDRESSES.USDHL,
     abi: ERC20_ABI,
     functionName: 'allowance',
     args: address ? [address, ADDRESSES.VAULT] : undefined,
     query: { enabled: !!address && mode === 'deposit', refetchInterval: 4_000 },
+  })
+
+  // Read USDHL balance (for after swap)
+  const { data: usdhlBalance, refetch: refetchUsdhlBalance } = useReadContract({
+    address: ADDRESSES.USDHL,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && swap.needsSwap, refetchInterval: 4_000 },
   })
 
   // Read total vault TVL
@@ -70,58 +83,30 @@ export function VaultCard() {
     query: { refetchInterval: 10_000 },
   })
 
-  const { writeContract, data: txHash, isPending, error: writeError } = useWriteContract()
+  const { writeContract, data: txHash, isPending, error: writeError, reset: resetWrite } = useWriteContract()
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash })
-
-  // Refetch allowances after tx confirms
-  useEffect(() => {
-    if (txSuccess) {
-      refetchAllowance()
-      refetchUsdhlAllowance()
-      setError(null)
-    }
-  }, [txSuccess, refetchAllowance, refetchUsdhlAllowance])
 
   // Show write errors
   useEffect(() => {
     if (writeError) {
       const msg = writeError.message || 'Transaction failed'
-      // Extract short error message
       const match = msg.match(/reason:\s*(.+?)(?:\n|$)/) || msg.match(/Details:\s*(.+?)(?:\n|$)/)
       setError(match ? match[1] : msg.slice(0, 120))
+      setDepositStep(null)
     }
   }, [writeError])
-
-  const balance = mode === 'deposit'
-    ? tokenBalance ? formatUnits(tokenBalance, selectedToken.decimals) : '0'
-    : vaultAssets ? formatUnits(vaultAssets, 6) : '0'
 
   const parsedAmount = amount && parseFloat(amount) > 0
     ? parseUnits(amount, selectedToken.decimals)
     : 0n
   const needsApproval = mode === 'deposit' && allowance !== undefined && parsedAmount > allowance
-
-  // For swap flow: after swapping, check if USDHL needs approval for vault
   const usdhlForVault = swap.needsSwap ? swap.expectedOut : parsedAmount
   const needsUsdhlApproval = swap.needsSwap && mode === 'deposit'
     && usdhlAllowance !== undefined && usdhlForVault > usdhlAllowance
 
-  const depositAmount = swap.needsSwap ? swap.expectedOut : parsedAmount
-  const annualYield = depositAmount > 0n && vaultData.totalApy
-    ? (parseFloat(formatUnits(depositAmount, 6)) * vaultData.totalApy / 100).toFixed(2)
-    : '0.00'
+  // ─── Action handlers ───
 
-  const handleMax = () => setAmount(balance)
-
-  const handleSelectToken = (token: TokenInfo) => {
-    setSelectedToken(token)
-    setShowTokenList(false)
-    setAmount('')
-    setError(null)
-  }
-
-  // Step 1: Approve input token for router (swap) or vault (direct) — max approval
-  const handleApprove = () => {
+  const doApprove = useCallback(() => {
     setError(null)
     writeContract({
       address: selectedToken.address,
@@ -129,23 +114,10 @@ export function VaultCard() {
       functionName: 'approve',
       args: [approvalTarget, maxUint256],
     })
-  }
+    setDepositStep('approve')
+  }, [selectedToken, approvalTarget, writeContract])
 
-  // Step 2: Swap via HyperSwap
-  const handleSwap = () => {
-    if (!address) return
-    setError(null)
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 300) // 5 min
-    writeContract({
-      address: ADDRESSES.HYPERSWAP_ROUTER,
-      abi: ROUTER_ABI,
-      functionName: 'swapExactTokensForTokens',
-      args: [parsedAmount, swap.minOut, [selectedToken.address, ADDRESSES.USDHL], address, deadline],
-    })
-  }
-
-  // Step 3: Approve USDHL for vault (after swap) — max approval
-  const handleApproveUsdhl = () => {
+  const doApproveUsdhl = useCallback(() => {
     setError(null)
     writeContract({
       address: ADDRESSES.USDHL,
@@ -153,27 +125,112 @@ export function VaultCard() {
       functionName: 'approve',
       args: [ADDRESSES.VAULT, maxUint256],
     })
-  }
+    setDepositStep('approveUsdhl')
+  }, [writeContract])
 
-  // Step 4: Deposit USDHL into vault
-  const handleDeposit = () => {
+  const doSwap = useCallback(() => {
     if (!address) return
     setError(null)
-    // For direct USDHL deposits, use parsedAmount. For post-swap, use actual USDHL balance
-    const depositAmt = swap.needsSwap ? usdhlForVault : parsedAmount
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 300)
+    writeContract({
+      address: ADDRESSES.HYPERSWAP_ROUTER,
+      abi: ROUTER_ABI,
+      functionName: 'swapExactTokensForTokens',
+      args: [parsedAmount, swap.minOut, [selectedToken.address, ADDRESSES.USDHL], address, deadline],
+    })
+    setDepositStep('swap')
+  }, [address, parsedAmount, swap.minOut, selectedToken, writeContract])
+
+  const doDeposit = useCallback((depositAmt: bigint) => {
+    if (!address) return
+    setError(null)
     writeContract({
       address: ADDRESSES.VAULT,
       abi: VAULT_ABI,
       functionName: 'deposit',
       args: [depositAmt, address],
     })
+    setDepositStep('deposit')
+  }, [address, writeContract])
+
+  // ─── Auto-advance after tx confirms ───
+  useEffect(() => {
+    if (!txSuccess || !txHash || txHash === lastHandledHash.current) return
+    lastHandledHash.current = txHash
+
+    // Refetch data
+    refetchAllowance()
+    refetchUsdhlAllowance()
+    refetchUsdhlBalance()
+    setError(null)
+
+    // Small delay to let allowance data refresh, then auto-advance
+    const timer = setTimeout(() => {
+      if (depositStep === 'approve') {
+        // Approval done — next: swap or deposit
+        if (swap.needsSwap) {
+          // Check if USDHL also needs approval for vault
+          if (usdhlAllowance !== undefined && usdhlForVault > usdhlAllowance) {
+            doApproveUsdhl()
+          } else {
+            doSwap()
+          }
+        } else {
+          doDeposit(parsedAmount)
+        }
+      } else if (depositStep === 'approveUsdhl') {
+        // USDHL approved — now swap
+        doSwap()
+      } else if (depositStep === 'swap') {
+        // Swap done — now deposit actual USDHL balance
+        refetchUsdhlBalance()
+        setTimeout(() => {
+          // Use actual USDHL balance after swap
+          const depositAmt = usdhlBalance ?? usdhlForVault
+          doDeposit(depositAmt)
+        }, 2000)
+      } else if (depositStep === 'deposit') {
+        // Deposit done!
+        setDepositStep('done')
+        setAmount('')
+        setTimeout(() => setDepositStep(null), 3000)
+      } else {
+        // Withdraw or other — just reset
+        setDepositStep(null)
+        setAmount('')
+      }
+    }, 1500)
+
+    return () => clearTimeout(timer)
+  }, [txSuccess, txHash, depositStep, swap.needsSwap, parsedAmount, usdhlForVault,
+      usdhlAllowance, usdhlBalance, doApproveUsdhl, doSwap, doDeposit,
+      refetchAllowance, refetchUsdhlAllowance, refetchUsdhlBalance])
+
+  // ─── Single deposit button handler ───
+  const handleDeposit = () => {
+    if (!address || !amount || parseFloat(amount) <= 0) return
+    resetWrite()
+    lastHandledHash.current = null
+
+    if (needsApproval) {
+      doApprove()
+    } else if (swap.needsSwap) {
+      if (needsUsdhlApproval) {
+        doApproveUsdhl()
+      } else {
+        doSwap()
+      }
+    } else {
+      doDeposit(parsedAmount)
+    }
   }
 
   const handleWithdraw = () => {
     if (!address) return
     setError(null)
+    resetWrite()
+    lastHandledHash.current = null
 
-    // If withdrawing full balance, use redeem(shares) to avoid rounding revert
     const isMax = vaultShares && vaultAssets &&
       parseFloat(amount) >= parseFloat(formatUnits(vaultAssets, 6)) * 0.999
 
@@ -195,19 +252,39 @@ export function VaultCard() {
     }
   }
 
-  // Determine current action step
-  const getAction = () => {
-    if (mode === 'withdraw') return { label: 'Withdraw', handler: handleWithdraw, step: '' }
-    if (needsApproval) return { label: 'Deposit', handler: handleApprove, step: `Step 1: Approve ${selectedToken.symbol}` }
-    if (swap.needsSwap) {
-      if (needsUsdhlApproval) return { label: 'Deposit', handler: handleApproveUsdhl, step: 'Step 2: Approve USDHL' }
-      return { label: 'Deposit', handler: handleSwap, step: 'Step 2: Swap to USDHL' }
-    }
-    return { label: 'Deposit', handler: handleDeposit, step: '' }
+  const balance = mode === 'deposit'
+    ? tokenBalance ? formatUnits(tokenBalance, selectedToken.decimals) : '0'
+    : vaultAssets ? formatUnits(vaultAssets, 6) : '0'
+
+  const handleMax = () => setAmount(balance)
+
+  const handleSelectToken = (token: TokenInfo) => {
+    setSelectedToken(token)
+    setShowTokenList(false)
+    setAmount('')
+    setError(null)
+    setDepositStep(null)
   }
 
-  const action = getAction()
-  const buttonLabel = isPending || isConfirming ? 'Confirming...' : action.label
+  const depositAmount = swap.needsSwap ? swap.expectedOut : parsedAmount
+  const annualYield = depositAmount > 0n && vaultData.totalApy
+    ? (parseFloat(formatUnits(depositAmount, 6)) * vaultData.totalApy / 100).toFixed(2)
+    : '0.00'
+
+  // ─── Button state ───
+  const isWorking = isPending || isConfirming || (depositStep !== null && depositStep !== 'done')
+  const getButtonLabel = () => {
+    if (mode === 'withdraw') return isPending || isConfirming ? 'Withdrawing...' : 'Withdraw'
+    if (depositStep === 'done') return '✓ Deposited!'
+    if (isWorking) {
+      if (depositStep === 'approve') return 'Approving...'
+      if (depositStep === 'approveUsdhl') return 'Approving USDHL...'
+      if (depositStep === 'swap') return 'Swapping...'
+      if (depositStep === 'deposit') return 'Depositing...'
+      return 'Confirming...'
+    }
+    return 'Deposit'
+  }
 
   const vaultTvl = totalAssets ? parseFloat(formatUnits(totalAssets, 6)) : 0
 
@@ -239,13 +316,13 @@ export function VaultCard() {
       <div className="mode-toggle">
         <button
           className={mode === 'deposit' ? 'active' : ''}
-          onClick={() => { setMode('deposit'); setSelectedToken(DEPOSIT_TOKENS[0]); setError(null) }}
+          onClick={() => { setMode('deposit'); setSelectedToken(DEPOSIT_TOKENS[0]); setError(null); setDepositStep(null) }}
         >
           Deposit
         </button>
         <button
           className={mode === 'withdraw' ? 'active' : ''}
-          onClick={() => { setMode('withdraw'); setError(null) }}
+          onClick={() => { setMode('withdraw'); setError(null); setDepositStep(null) }}
         >
           Withdraw
         </button>
@@ -264,14 +341,15 @@ export function VaultCard() {
             type="number"
             placeholder="0.00"
             value={amount}
-            onChange={(e) => { setAmount(e.target.value); setError(null) }}
+            onChange={(e) => { setAmount(e.target.value); setError(null); setDepositStep(null) }}
             min="0"
             step="0.01"
+            disabled={isWorking}
           />
           <div className="input-right">
-            <button className="max-btn" onClick={handleMax}>MAX</button>
+            <button className="max-btn" onClick={handleMax} disabled={isWorking}>MAX</button>
             {mode === 'deposit' ? (
-              <div className="token-selector" onClick={() => setShowTokenList(!showTokenList)}>
+              <div className="token-selector" onClick={() => !isWorking && setShowTokenList(!showTokenList)}>
                 <span className="token-badge clickable">{selectedToken.symbol}</span>
                 <span className="token-arrow">{showTokenList ? '\u25B2' : '\u25BC'}</span>
                 {showTokenList && (
@@ -298,8 +376,8 @@ export function VaultCard() {
       {/* Swap estimate */}
       {mode === 'deposit' && swap.needsSwap && swap.expectedOut > 0n && (
         <div className="swap-estimate">
-          <span>You receive</span>
-          <span className="swap-value">~{parseFloat(formatUnits(swap.expectedOut, 6)).toFixed(2)} USDHL</span>
+          <span>Estimated deposit</span>
+          <span className="swap-value">~${parseFloat(formatUnits(swap.expectedOut, 6)).toFixed(2)}</span>
         </div>
       )}
 
@@ -318,21 +396,14 @@ export function VaultCard() {
         </div>
       )}
 
-      {/* Step indicator */}
-      {action.step && (
-        <div style={{ color: '#888', fontSize: '12px', marginBottom: '8px', textAlign: 'center' }}>
-          {action.step}
-        </div>
-      )}
-
       {/* Action Button */}
       {isConnected ? (
         <button
           className="action-btn"
-          onClick={action.handler}
-          disabled={!amount || parseFloat(amount) <= 0 || isPending || isConfirming}
+          onClick={mode === 'withdraw' ? handleWithdraw : handleDeposit}
+          disabled={!amount || parseFloat(amount) <= 0 || isWorking}
         >
-          {buttonLabel}
+          {getButtonLabel()}
         </button>
       ) : (
         <div className="connect-prompt">Connect wallet to {mode}</div>

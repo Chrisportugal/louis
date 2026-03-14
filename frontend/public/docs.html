@@ -163,7 +163,7 @@
 
     <h2 id="how-it-works">How It Works</h2>
     <ol>
-      <li><strong>Deposit</strong> - You deposit USDHL (or other supported stablecoins) into the Louis vault. You receive <code>louisUSD</code> share tokens representing your position.</li>
+      <li><strong>Deposit</strong> - You deposit USDC (or other supported stablecoins) into the Louis vault. You receive <code>louisUSD</code> share tokens representing your position.</li>
       <li><strong>AI Monitors</strong> - The AI agent continuously monitors APYs across all integrated lending protocols on HyperEVM.</li>
       <li><strong>Auto-Reallocate</strong> - When a better opportunity is found, the agent calls <code>reallocate()</code> to move funds to the higher-yielding protocol.</li>
       <li><strong>Withdraw Anytime</strong> - Redeem your <code>louisUSD</code> shares at any time. The vault automatically pulls funds from protocols to fulfil your withdrawal.</li>
@@ -211,7 +211,9 @@
       Default slippage: 0.5%. Quotes refresh every 15 seconds.
     </div>
 
-    <h2 id="fees">Management Fee</h2>
+    <h2 id="fees">Fees</h2>
+
+    <h3>Management Fee</h3>
     <p>
       Louis charges a <strong>10% management fee</strong> on earned yield (not on deposits).
       The fee is collected via the <code>harvest()</code> function, which:
@@ -225,6 +227,18 @@
     <p>
       This is the standard DeFi fee pattern (used by Yearn, Morpho, etc.) &mdash; share dilution
       ensures the fee is taken proportionally without moving underlying assets.
+    </p>
+
+    <h3>Swap Slippage</h3>
+    <p>
+      When depositing with <strong>USDC</strong> or <strong>USDT</strong>, the vault automatically
+      swaps to USDHL via HyperSwap before depositing. A <strong>0.5% slippage tolerance</strong>
+      is applied to protect against price movements during the swap.
+    </p>
+    <p>
+      For stablecoin-to-stablecoin swaps, actual slippage is typically &lt;0.1%. The swap quote
+      refreshes every 15 seconds so you always see the latest expected output. There is no
+      additional fee from Louis on swaps &mdash; only the standard HyperSwap DEX fee applies (~0.3%).
     </p>
 
     <h2 id="vault">YieldVault Contract</h2>
