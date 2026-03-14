@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, useReadContract } from 'wagmi'
 import { formatUnits } from 'viem'
 import { ADDRESSES, VAULT_ABI } from '../config/contracts'
@@ -26,46 +26,26 @@ export function getLeague(points: number): League {
   return LEAGUES[0]
 }
 
-// ─── Points Storage ───
-// We track points incrementally: each visit, compute new points from
-// (current_usd_value × hours_since_last_snapshot / 24), add to accumulated total.
-// Stored per-address in localStorage.
+// ─── Points Model ───
+// 1 point = $1 deposited in the vault (real-time, based on current balance)
+// Users earn yield normally but 20% fee goes to $LOUIS buybacks
+// Points are only kept if user keeps funds deposited until TGE
+// Withdraw = lose points (proportionally)
+// At TGE: convert points → $LOUIS tokens OR exercise put option
 
-interface PointsSnapshot {
-  points: number
-  lastCheckedAt: number // Unix ms
-  lastValueUsd: number  // USD value at last check
-}
-
-const STORAGE_KEY = 'louis-points-'
-
-function loadSnapshot(address: string): PointsSnapshot {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY + address.toLowerCase())
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return { points: 0, lastCheckedAt: Date.now(), lastValueUsd: 0 }
-}
-
-function saveSnapshot(address: string, snapshot: PointsSnapshot) {
-  localStorage.setItem(
-    STORAGE_KEY + address.toLowerCase(),
-    JSON.stringify(snapshot)
-  )
-}
+export const PERFORMANCE_FEE = 0.20 // 20% of yield goes to $LOUIS buybacks
 
 // ─── Hook ───
 export interface PointsData {
-  points: number
+  points: number        // = current USD deposit (1 pt per $1)
   league: League
-  dailyRate: number  // points earned per day at current value
+  depositUsd: number    // current deposit in USD
   loading: boolean
 }
 
 export function usePoints(): PointsData {
   const { address, isConnected } = useAccount()
-  const [points, setPoints] = useState(0)
-  const [dailyRate, setDailyRate] = useState(0)
+  const [depositUsd, setDepositUsd] = useState(0)
 
   // Read user's vault shares
   const { data: shares } = useReadContract({
@@ -89,41 +69,22 @@ export function usePoints(): PointsData {
 
   useEffect(() => {
     if (!address || !isConnected) {
-      setPoints(0)
-      setDailyRate(0)
+      setDepositUsd(0)
       return
     }
 
     // USD value (USDHL has 6 decimals, ~$1 each)
     const currentUsd = assetsValue ? Number(formatUnits(assetsValue, 6)) : 0
-
-    // Load previous snapshot
-    const snapshot = loadSnapshot(address)
-    const now = Date.now()
-    const hoursSinceLastCheck = (now - snapshot.lastCheckedAt) / (1000 * 60 * 60)
-
-    // Accumulate points: use average of last known value and current value
-    // (handles deposits/withdrawals between checks more fairly)
-    const avgValue = (snapshot.lastValueUsd + currentUsd) / 2
-    const newPoints = avgValue * (hoursSinceLastCheck / 24)
-    const totalPoints = snapshot.points + newPoints
-
-    // Save updated snapshot
-    const updated: PointsSnapshot = {
-      points: totalPoints,
-      lastCheckedAt: now,
-      lastValueUsd: currentUsd,
-    }
-    saveSnapshot(address, updated)
-
-    setPoints(totalPoints)
-    setDailyRate(currentUsd) // 1 point per $1 per day
+    setDepositUsd(currentUsd)
   }, [address, isConnected, assetsValue])
+
+  // Points = current deposit in USD (1:1)
+  const points = depositUsd
 
   return {
     points,
     league: getLeague(points),
-    dailyRate,
+    depositUsd,
     loading,
   }
 }
