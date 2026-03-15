@@ -28,7 +28,13 @@ export function VaultCard() {
   const isBridging = selectedChain !== 999
   const isSolana = selectedChain === -1
   const chainName = SOURCE_CHAINS.find(c => c.id === selectedChain)?.name || 'HyperEVM'
-  const bridgeQuote = useBridgeQuote(selectedChain, amount)
+  const bridgeOrigin = mode === 'deposit' ? selectedChain : 999
+  const bridgeDest = mode === 'deposit' ? 999 : selectedChain
+  const bridgeQuote = useBridgeQuote(bridgeOrigin, bridgeDest, amount)
+
+  // Refs for withdraw-then-bridge flow
+  const pendingBridge = useRef(false)
+  const bridgeAmount = useRef('')
 
   // Read selected token balance
   const { data: tokenBalance } = useReadContract({
@@ -163,6 +169,28 @@ export function VaultCard() {
     setDepositStep('deposit')
   }, [address, writeContract])
 
+  // ─── Bridge URL opener (used by deposit + withdraw) ───
+  const openBridgeUrl = useCallback((amt: string, direction: 'deposit' | 'withdraw') => {
+    if (!amt || parseFloat(amt) <= 0) return
+    const rawAmount = BigInt(Math.floor(parseFloat(amt) * 1e6)).toString()
+
+    if (direction === 'deposit') {
+      if (isSolana) {
+        window.open(`https://app.debridge.com/?inputChain=7565164&outputChain=999&inputCurrency=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputCurrency=${ADDRESSES.USDHL}&amount=${amt}&dlnMode=simple`, '_blank')
+      } else {
+        const inputToken = USDC_BY_CHAIN[selectedChain]
+        window.open(`https://app.across.to/bridge?inputToken=${inputToken}&outputToken=${ADDRESSES.USDHL}&destinationChainId=999&originChainId=${selectedChain}&amount=${rawAmount}`, '_blank')
+      }
+    } else {
+      if (isSolana) {
+        window.open(`https://app.debridge.com/?inputChain=999&outputChain=7565164&inputCurrency=${ADDRESSES.USDHL}&outputCurrency=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=${amt}&dlnMode=simple`, '_blank')
+      } else {
+        const outputToken = USDC_BY_CHAIN[selectedChain]
+        window.open(`https://app.across.to/bridge?inputToken=${ADDRESSES.USDHL}&outputToken=${outputToken}&originChainId=999&destinationChainId=${selectedChain}&amount=${rawAmount}`, '_blank')
+      }
+    }
+  }, [selectedChain, isSolana])
+
   // ─── Auto-advance after tx confirms ───
   useEffect(() => {
     if (!txSuccess || !txHash || txHash === lastHandledHash.current) return
@@ -203,6 +231,13 @@ export function VaultCard() {
         setTimeout(() => setDepositStep(null), 3000)
       } else {
         // Withdraw or other — just reset
+        // If pending bridge after withdrawal, open bridge URL
+        if (pendingBridge.current) {
+          pendingBridge.current = false
+          const amt = bridgeAmount.current
+          bridgeAmount.current = ''
+          if (amt) openBridgeUrl(amt, 'withdraw')
+        }
         setDepositStep(null)
         setAmount('')
       }
@@ -211,7 +246,7 @@ export function VaultCard() {
     return () => clearTimeout(timer)
   }, [txSuccess, txHash, depositStep, swap.needsSwap, parsedAmount, usdhlForVault,
       usdhlAllowance, doApproveUsdhl, doSwap, doDeposit, resetWrite,
-      refetchAllowance, refetchUsdhlAllowance, refetchUsdhlBalance])
+      refetchAllowance, refetchUsdhlAllowance, refetchUsdhlBalance, openBridgeUrl])
 
   // ─── Single deposit button handler ───
   const handleDeposit = () => {
@@ -284,15 +319,15 @@ export function VaultCard() {
 
   const handleBridgeDeposit = () => {
     if (!amount || parseFloat(amount) <= 0) return
-    if (isSolana) {
-      const url = `https://app.debridge.com/?inputChain=7565164&outputChain=999&inputCurrency=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputCurrency=0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5&amount=${amount}&dlnMode=simple`
-      window.open(url, '_blank')
-    } else {
-      const inputToken = USDC_BY_CHAIN[selectedChain]
-      const rawAmount = BigInt(Math.floor(parseFloat(amount) * 1e6)).toString()
-      const url = `https://app.across.to/bridge?inputToken=${inputToken}&outputToken=0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5&destinationChainId=999&originChainId=${selectedChain}&amount=${rawAmount}`
-      window.open(url, '_blank')
-    }
+    openBridgeUrl(amount, 'deposit')
+  }
+
+  const handleWithdrawAndBridge = () => {
+    if (!address || !amount || parseFloat(amount) <= 0) return
+    // Save amount for after withdrawal, then do the vault withdrawal
+    bridgeAmount.current = amount
+    pendingBridge.current = true
+    handleWithdraw()
   }
 
   const depositAmount = swap.needsSwap ? swap.expectedOut : parsedAmount
@@ -357,37 +392,35 @@ export function VaultCard() {
         </button>
       </div>
 
-      {/* Source Chain Selector — deposit mode only */}
-      {mode === 'deposit' && (
-        <div className="chain-selector-group">
-          <div className="input-header">
-            <span className="input-label">From</span>
-          </div>
-          <div className="chain-selector" onClick={() => !isWorking && setShowChainList(!showChainList)}>
-            <span className="chain-name">{chainName}</span>
-            <span className="token-arrow">{showChainList ? '\u25B2' : '\u25BC'}</span>
-            {showChainList && (
-              <div className="chain-dropdown">
-                {SOURCE_CHAINS.map((chain) => (
-                  <div
-                    key={chain.id}
-                    className={`chain-option ${chain.id === selectedChain ? 'selected' : ''}`}
-                    onClick={(e) => { e.stopPropagation(); handleSelectChain(chain.id) }}
-                  >
-                    {chain.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+      {/* Chain Selector — deposit: "From", withdraw: "To" */}
+      <div className="chain-selector-group">
+        <div className="input-header">
+          <span className="input-label">{mode === 'deposit' ? 'From' : 'To'}</span>
         </div>
-      )}
+        <div className="chain-selector" onClick={() => !isWorking && setShowChainList(!showChainList)}>
+          <span className="chain-name">{chainName}</span>
+          <span className="token-arrow">{showChainList ? '\u25B2' : '\u25BC'}</span>
+          {showChainList && (
+            <div className="chain-dropdown">
+              {SOURCE_CHAINS.map((chain) => (
+                <div
+                  key={chain.id}
+                  className={`chain-option ${chain.id === selectedChain ? 'selected' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); handleSelectChain(chain.id) }}
+                >
+                  {chain.name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Input */}
       <div className="input-group">
         <div className="input-header">
-          <span className="input-label">{isBridging ? 'Amount (USDC)' : 'Amount'}</span>
-          {!isBridging && (
+          <span className="input-label">{mode === 'deposit' && isBridging ? 'Amount (USDC)' : 'Amount'}</span>
+          {!(mode === 'deposit' && isBridging) && (
             <span className="input-balance">
               Balance: {parseFloat(balance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {mode === 'deposit' ? selectedToken.symbol : 'louisUSD'}
             </span>
@@ -401,10 +434,10 @@ export function VaultCard() {
             onChange={(e) => { setAmount(e.target.value); setError(null); setDepositStep(null) }}
             min="0"
             step="0.01"
-            disabled={isWorking && !isBridging}
+            disabled={isWorking && !(mode === 'deposit' && isBridging)}
           />
           <div className="input-right">
-            {!isBridging && <button className="max-btn" onClick={handleMax} disabled={isWorking}>MAX</button>}
+            {!(mode === 'deposit' && isBridging) && <button className="max-btn" onClick={handleMax} disabled={isWorking}>MAX</button>}
             {mode === 'deposit' ? (
               isBridging ? (
                 <span className="token-badge">USDC</span>
@@ -470,7 +503,7 @@ export function VaultCard() {
         ) : null
       )}
 
-      {/* Solana bridge info */}
+      {/* Solana bridge info (deposit) */}
       {mode === 'deposit' && isSolana && amount && parseFloat(amount) > 0 && (
         <div className="bridge-estimate">
           <div className="bridge-row">
@@ -480,6 +513,48 @@ export function VaultCard() {
           <div className="bridge-row">
             <span>Destination</span>
             <span>HyperEVM</span>
+          </div>
+        </div>
+      )}
+
+      {/* Bridge estimate (withdraw to other chain) */}
+      {mode === 'withdraw' && isBridging && !isSolana && amount && parseFloat(amount) > 0 && (
+        bridgeQuote.loading ? (
+          <div className="bridge-estimate">
+            <span className="bridge-loading">Fetching bridge quote...</span>
+          </div>
+        ) : bridgeQuote.error ? (
+          <div className="bridge-estimate error">
+            <span>{bridgeQuote.error}</span>
+          </div>
+        ) : bridgeQuote.outputAmount > 0n ? (
+          <div className="bridge-estimate">
+            <div className="bridge-row">
+              <span>You'll receive on {chainName}</span>
+              <span className="bridge-value">~{parseFloat(formatUnits(bridgeQuote.outputAmount, 6)).toFixed(2)} USDC</span>
+            </div>
+            <div className="bridge-row">
+              <span>Bridge fee</span>
+              <span>~${parseFloat(formatUnits(bridgeQuote.totalFee, 6)).toFixed(2)}</span>
+            </div>
+            <div className="bridge-row">
+              <span>Est. time</span>
+              <span>{bridgeQuote.estimatedTime < 60 ? `~${bridgeQuote.estimatedTime}s` : `~${Math.ceil(bridgeQuote.estimatedTime / 60)} min`}</span>
+            </div>
+          </div>
+        ) : null
+      )}
+
+      {/* Solana bridge info (withdraw) */}
+      {mode === 'withdraw' && isSolana && amount && parseFloat(amount) > 0 && (
+        <div className="bridge-estimate">
+          <div className="bridge-row">
+            <span>Bridge via deBridge</span>
+            <span className="bridge-value">USDHL → USDC</span>
+          </div>
+          <div className="bridge-row">
+            <span>Destination</span>
+            <span>Solana</span>
           </div>
         </div>
       )}
@@ -500,7 +575,7 @@ export function VaultCard() {
       )}
 
       {/* Action Button */}
-      {isBridging ? (
+      {mode === 'deposit' && isBridging ? (
         <button
           className="action-btn"
           onClick={handleBridgeDeposit}
@@ -508,6 +583,18 @@ export function VaultCard() {
         >
           {isSolana ? 'Bridge via deBridge' : 'Bridge via Across'}
         </button>
+      ) : mode === 'withdraw' && isBridging ? (
+        isConnected ? (
+          <button
+            className="action-btn"
+            onClick={handleWithdrawAndBridge}
+            disabled={!amount || parseFloat(amount) <= 0 || isWorking}
+          >
+            {isPending || isConfirming ? 'Withdrawing...' : isSolana ? 'Withdraw & Bridge (deBridge)' : 'Withdraw & Bridge (Across)'}
+          </button>
+        ) : (
+          <div className="connect-prompt">Connect wallet to withdraw</div>
+        )
       ) : isConnected ? (
         <button
           className="action-btn"

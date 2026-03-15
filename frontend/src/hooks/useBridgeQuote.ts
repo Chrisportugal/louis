@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { USDC_BY_CHAIN } from '../config/wagmi'
 
-// USDHL on HyperEVM (destination token)
 const USDHL = '0xb50A96253aBDF803D85efcDce07Ad8becBc52BD5'
 const ACROSS_API = 'https://across.to/api'
 
@@ -14,11 +13,14 @@ export interface BridgeQuote {
 }
 
 /**
- * Fetches a bridge quote from Across API for bridging USDC from a source chain
- * to USDHL on HyperEVM (chain 999).
+ * Fetches a bridge quote from Across API.
+ *
+ * Deposit direction:  originChainId → 999  (USDC on source → USDHL on HyperEVM)
+ * Withdraw direction: 999 → destinationChainId (USDHL on HyperEVM → USDC on dest)
  */
 export function useBridgeQuote(
-  sourceChainId: number,
+  originChainId: number,
+  destinationChainId: number,
   amount: string, // human-readable e.g. "100"
 ): BridgeQuote {
   const [quote, setQuote] = useState<BridgeQuote>({
@@ -30,15 +32,32 @@ export function useBridgeQuote(
   })
 
   useEffect(() => {
-    // Only fetch if bridging from another chain
-    if (sourceChainId === 999 || !amount || parseFloat(amount) <= 0) {
+    // No bridging needed if same chain or invalid amount
+    if (
+      originChainId === destinationChainId ||
+      !amount ||
+      parseFloat(amount) <= 0
+    ) {
       setQuote({ outputAmount: 0n, totalFee: 0n, estimatedTime: 0, loading: false, error: null })
       return
     }
 
-    const inputToken = USDC_BY_CHAIN[sourceChainId]
-    if (!inputToken) {
-      setQuote(q => ({ ...q, error: 'Unsupported chain', loading: false }))
+    // Determine tokens based on direction
+    let inputToken: string | undefined
+    let outputToken: string | undefined
+
+    if (originChainId !== 999 && destinationChainId === 999) {
+      // Deposit: USDC on source chain → USDHL on HyperEVM
+      inputToken = USDC_BY_CHAIN[originChainId]
+      outputToken = USDHL
+    } else if (originChainId === 999 && destinationChainId !== 999) {
+      // Withdraw: USDHL on HyperEVM → USDC on destination
+      inputToken = USDHL
+      outputToken = USDC_BY_CHAIN[destinationChainId]
+    }
+
+    if (!inputToken || !outputToken) {
+      setQuote(q => ({ ...q, error: 'Unsupported route', loading: false }))
       return
     }
 
@@ -49,9 +68,9 @@ export function useBridgeQuote(
 
     const params = new URLSearchParams({
       inputToken,
-      outputToken: USDHL,
-      originChainId: sourceChainId.toString(),
-      destinationChainId: '999',
+      outputToken,
+      originChainId: originChainId.toString(),
+      destinationChainId: destinationChainId.toString(),
       amount: rawAmount,
     })
 
@@ -87,7 +106,7 @@ export function useBridgeQuote(
       })
 
     return () => controller.abort()
-  }, [sourceChainId, amount])
+  }, [originChainId, destinationChainId, amount])
 
   return quote
 }
