@@ -10,15 +10,15 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0a0b0f;
-      --bg-card: #12131a;
-      --bg-input: #1a1b24;
-      --border: #1e2030;
-      --text: #8b8fa3;
-      --text-bright: #e4e6f0;
-      --text-dim: #4a4d62;
-      --accent: #3b82f6;
-      --green: #22c55e;
+      --bg: #171b21;
+      --bg-card: #1e2329;
+      --bg-input: #252a31;
+      --border: #2e353d;
+      --text: #9ca3af;
+      --text-bright: #e8eaed;
+      --text-dim: #5c6370;
+      --accent: #50e3c2;
+      --green: #50e3c2;
       --red: #ef4444;
       --font: 'Inter', system-ui, sans-serif;
     }
@@ -33,18 +33,18 @@
       display: flex; align-items: center; justify-content: space-between;
       padding: 16px 32px; border-bottom: 1px solid var(--border);
       position: sticky; top: 0; z-index: 100;
-      background: rgba(10,11,15,0.9); backdrop-filter: blur(12px);
+      background: rgba(23,27,33,0.92); backdrop-filter: blur(12px);
     }
     .nav-left { display: flex; align-items: center; gap: 10px; }
     .logo { font-size: 22px; font-weight: 700; color: var(--text-bright); }
     .nav-tag { font-size: 11px; font-weight: 500; color: var(--accent);
-      background: rgba(59,130,246,0.15); padding: 3px 8px; border-radius: 4px;
+      background: rgba(80,227,194,0.12); padding: 3px 8px; border-radius: 4px;
       text-transform: uppercase; letter-spacing: 0.5px; }
     .nav a { color: var(--text); text-decoration: none; font-size: 14px;
       font-weight: 500; transition: color 0.2s; }
     .nav a:hover { color: var(--text-bright); }
     .nav-right { display: flex; gap: 20px; align-items: center; }
-    .btn-app { background: var(--accent); color: white; padding: 8px 20px;
+    .btn-app { background: var(--accent); color: #000000; padding: 8px 20px;
       border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; }
     .layout { display: flex; max-width: 1200px; margin: 0 auto; min-height: calc(100vh - 57px); }
     .sidebar {
@@ -90,11 +90,11 @@
     }
     pre code { background: none; padding: 0; color: var(--text-bright); }
     .callout {
-      background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2);
+      background: rgba(80,227,194,0.06); border: 1px solid rgba(80,227,194,0.18);
       border-radius: 10px; padding: 16px 20px; margin-bottom: 16px;
     }
     .callout-green {
-      background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2);
+      background: rgba(80,227,194,0.08); border-color: rgba(80,227,194,0.22);
     }
     .callout-red {
       background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2);
@@ -103,8 +103,8 @@
       display: inline-block; font-size: 11px; font-weight: 600;
       padding: 3px 8px; border-radius: 4px; margin-right: 6px;
     }
-    .badge-aave { background: rgba(176,75,248,0.15); color: #b04bf8; }
-    .badge-erc4626 { background: rgba(59,130,246,0.15); color: var(--accent); }
+    .badge-aave { background: rgba(176,75,248,0.15); color: #c084fc; }
+    .badge-erc4626 { background: rgba(80,227,194,0.15); color: var(--accent); }
     table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
     th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border);
       color: var(--text-dim); font-size: 12px; text-transform: uppercase;
@@ -207,36 +207,36 @@
 
     <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 24px 0; overflow-x: auto;">
       <svg viewBox="0 0 780 220" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 780px;">
-        <rect x="10" y="80" width="110" height="60" rx="10" fill="#1a1b24" stroke="#3b82f6" stroke-width="1.5"/>
-        <text x="65" y="106" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="13" font-weight="600">User</text>
-        <text x="65" y="124" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">USDC / USDT / USDHL</text>
-        <line x1="120" y1="110" x2="170" y2="110" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
-        <text x="145" y="100" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9">swap</text>
-        <rect x="170" y="80" width="110" height="60" rx="10" fill="#1a1b24" stroke="#2a2d42" stroke-width="1.5"/>
-        <text x="225" y="106" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="12" font-weight="600">HyperSwap</text>
-        <text x="225" y="124" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">V2 Router</text>
-        <line x1="280" y1="110" x2="330" y2="110" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
-        <text x="305" y="100" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9">USDHL</text>
-        <rect x="330" y="65" width="140" height="90" rx="12" fill="#1a1b24" stroke="#3b82f6" stroke-width="2"/>
-        <text x="400" y="95" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="14" font-weight="700">Louis Vault</text>
-        <text x="400" y="113" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="10">ERC-4626</text>
+        <rect x="10" y="80" width="110" height="60" rx="10" fill="#1e2329" stroke="#50e3c2" stroke-width="1.5"/>
+        <text x="65" y="106" text-anchor="middle" fill="#e8eaed" font-family="Inter, sans-serif" font-size="13" font-weight="600">User</text>
+        <text x="65" y="124" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">USDC / USDT / USDHL</text>
+        <line x1="120" y1="110" x2="170" y2="110" stroke="#50e3c2" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+        <text x="145" y="100" text-anchor="middle" fill="#5c6370" font-family="Inter, sans-serif" font-size="9">swap</text>
+        <rect x="170" y="80" width="110" height="60" rx="10" fill="#1e2329" stroke="#2e353d" stroke-width="1.5"/>
+        <text x="225" y="106" text-anchor="middle" fill="#e8eaed" font-family="Inter, sans-serif" font-size="12" font-weight="600">HyperSwap</text>
+        <text x="225" y="124" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">V2 Router</text>
+        <line x1="280" y1="110" x2="330" y2="110" stroke="#50e3c2" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+        <text x="305" y="100" text-anchor="middle" fill="#5c6370" font-family="Inter, sans-serif" font-size="9">USDHL</text>
+        <rect x="330" y="65" width="140" height="90" rx="12" fill="#1e2329" stroke="#50e3c2" stroke-width="2"/>
+        <text x="400" y="95" text-anchor="middle" fill="#e8eaed" font-family="Inter, sans-serif" font-size="14" font-weight="700">Louis Vault</text>
+        <text x="400" y="113" text-anchor="middle" fill="#50e3c2" font-family="Inter, sans-serif" font-size="10">ERC-4626</text>
         <text x="400" y="130" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="10">Mints louisUSD</text>
-        <text x="400" y="147" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="9">20% fee on yield</text>
+        <text x="400" y="147" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="9">20% fee on yield</text>
         <line x1="470" y1="90" x2="530" y2="50" stroke="#b04bf8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
         <line x1="470" y1="110" x2="530" y2="110" stroke="#b04bf8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
-        <line x1="470" y1="130" x2="530" y2="175" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
-        <rect x="530" y="25" width="130" height="44" rx="8" fill="#1a1b24" stroke="#b04bf8" stroke-width="1.5"/>
-        <text x="595" y="45" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="11" font-weight="600">HyperLend</text>
+        <line x1="470" y1="130" x2="530" y2="175" stroke="#50e3c2" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+        <rect x="530" y="25" width="130" height="44" rx="8" fill="#1e2329" stroke="#b04bf8" stroke-width="1.5"/>
+        <text x="595" y="45" text-anchor="middle" fill="#e8eaed" font-family="Inter, sans-serif" font-size="11" font-weight="600">HyperLend</text>
         <text x="595" y="60" text-anchor="middle" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">Aave V3</text>
-        <rect x="530" y="85" width="130" height="44" rx="8" fill="#1a1b24" stroke="#b04bf8" stroke-width="1.5"/>
-        <text x="595" y="105" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="11" font-weight="600">HypurrFi</text>
+        <rect x="530" y="85" width="130" height="44" rx="8" fill="#1e2329" stroke="#b04bf8" stroke-width="1.5"/>
+        <text x="595" y="105" text-anchor="middle" fill="#e8eaed" font-family="Inter, sans-serif" font-size="11" font-weight="600">HypurrFi</text>
         <text x="595" y="120" text-anchor="middle" fill="#b04bf8" font-family="Inter, sans-serif" font-size="9">Aave V3</text>
-        <rect x="530" y="145" width="130" height="60" rx="8" fill="#1a1b24" stroke="#3b82f6" stroke-width="1.5"/>
-        <text x="595" y="165" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="11" font-weight="600">Felix Protocol</text>
-        <text x="595" y="180" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="9">ERC-4626 MetaMorpho</text>
-        <text x="595" y="196" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="8">Frontier + USDhl vaults</text>
+        <rect x="530" y="145" width="130" height="60" rx="8" fill="#1e2329" stroke="#50e3c2" stroke-width="1.5"/>
+        <text x="595" y="165" text-anchor="middle" fill="#e8eaed" font-family="Inter, sans-serif" font-size="11" font-weight="600">Felix Protocol</text>
+        <text x="595" y="180" text-anchor="middle" fill="#50e3c2" font-family="Inter, sans-serif" font-size="9">ERC-4626 MetaMorpho</text>
+        <text x="595" y="196" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="8">Frontier + USDhl vaults</text>
         <defs>
-          <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3b82f6"/></marker>
+          <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#50e3c2"/></marker>
           <marker id="arrowPurple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#b04bf8"/></marker>
           <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#22c55e"/></marker>
         </defs>
@@ -337,24 +337,24 @@
     <h3>Role Separation</h3>
     <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; overflow-x: auto;">
       <svg viewBox="0 0 660 140" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 660px;">
-        <rect x="10" y="10" width="190" height="120" rx="10" fill="#1a1b24" stroke="#3b82f6" stroke-width="1.5"/>
-        <text x="105" y="34" text-anchor="middle" fill="#3b82f6" font-family="Inter, sans-serif" font-size="12" font-weight="700">Owner</text>
-        <text x="105" y="54" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">addProtocol() / addVault()</text>
-        <text x="105" y="70" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">toggleProtocol() / pause()</text>
-        <text x="105" y="86" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">emergencyPull()</text>
-        <text x="105" y="102" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">setAllocator() / setFeeRecipient()</text>
-        <text x="105" y="118" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9" font-style="italic">Full admin control</text>
-        <rect x="230" y="10" width="190" height="120" rx="10" fill="#1a1b24" stroke="#22c55e" stroke-width="1.5"/>
+        <rect x="10" y="10" width="190" height="120" rx="10" fill="#1e2329" stroke="#50e3c2" stroke-width="1.5"/>
+        <text x="105" y="34" text-anchor="middle" fill="#50e3c2" font-family="Inter, sans-serif" font-size="12" font-weight="700">Owner</text>
+        <text x="105" y="54" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">addProtocol() / addVault()</text>
+        <text x="105" y="70" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">toggleProtocol() / pause()</text>
+        <text x="105" y="86" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">emergencyPull()</text>
+        <text x="105" y="102" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">setAllocator() / setFeeRecipient()</text>
+        <text x="105" y="118" text-anchor="middle" fill="#5c6370" font-family="Inter, sans-serif" font-size="9" font-style="italic">Full admin control</text>
+        <rect x="230" y="10" width="190" height="120" rx="10" fill="#1e2329" stroke="#22c55e" stroke-width="1.5"/>
         <text x="325" y="34" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="12" font-weight="700">Allocator (AI Agent)</text>
-        <text x="325" y="58" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">reallocate(from, to, amt)</text>
-        <text x="325" y="78" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">setActiveIndex(idx)</text>
-        <text x="325" y="98" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">harvest()</text>
-        <text x="325" y="118" text-anchor="middle" fill="#4a4d62" font-family="Inter, sans-serif" font-size="9" font-style="italic">Cannot add/remove protocols</text>
-        <rect x="450" y="10" width="190" height="120" rx="10" fill="#1a1b24" stroke="#8b8fa3" stroke-width="1.5"/>
-        <text x="545" y="34" text-anchor="middle" fill="#e4e6f0" font-family="Inter, sans-serif" font-size="12" font-weight="700">Users</text>
-        <text x="545" y="58" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">deposit(assets, receiver)</text>
-        <text x="545" y="78" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">withdraw(assets, rcvr, owner)</text>
-        <text x="545" y="98" text-anchor="middle" fill="#8b8fa3" font-family="Inter, sans-serif" font-size="10">redeem(shares, rcvr, owner)</text>
+        <text x="325" y="58" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">reallocate(from, to, amt)</text>
+        <text x="325" y="78" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">setActiveIndex(idx)</text>
+        <text x="325" y="98" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">harvest()</text>
+        <text x="325" y="118" text-anchor="middle" fill="#5c6370" font-family="Inter, sans-serif" font-size="9" font-style="italic">Cannot add/remove protocols</text>
+        <rect x="450" y="10" width="190" height="120" rx="10" fill="#1e2329" stroke="#8b8fa3" stroke-width="1.5"/>
+        <text x="545" y="34" text-anchor="middle" fill="#e8eaed" font-family="Inter, sans-serif" font-size="12" font-weight="700">Users</text>
+        <text x="545" y="58" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">deposit(assets, receiver)</text>
+        <text x="545" y="78" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">withdraw(assets, rcvr, owner)</text>
+        <text x="545" y="98" text-anchor="middle" fill="#9ca3af" font-family="Inter, sans-serif" font-size="10">redeem(shares, rcvr, owner)</text>
         <text x="545" y="118" text-anchor="middle" fill="#22c55e" font-family="Inter, sans-serif" font-size="9" font-weight="600">Receive louisUSD shares</text>
       </svg>
     </div>
