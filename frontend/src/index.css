@@ -191,13 +191,13 @@ body {
 }
 
 .hero-title {
-  font-size: 32px;
+  font-size: 38px;
   font-weight: 700;
   color: var(--text-bright);
-  line-height: 1.15;
-  letter-spacing: -1.5px;
+  line-height: 1.1;
+  letter-spacing: -2px;
   margin-bottom: 16px;
-  max-width: 460px;
+  max-width: 480px;
   margin-left: auto;
   margin-right: auto;
 }
