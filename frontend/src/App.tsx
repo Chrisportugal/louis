@@ -68,11 +68,8 @@ function App() {
           {page === 'vault' && (
             <main className="main">
               <div className="hero">
-                <p className="hero-eyebrow">AI-Powered Yield</p>
-                <h1 className="hero-title">Deposit.<br/>Let Louis work.</h1>
-                <p className="hero-sub">
-                  Autonomous yield allocation on HyperEVM.
-                </p>
+                <p className="hero-eyebrow">AI Yield Agent</p>
+                <h1 className="hero-title">AI agent that routes stablecoins to achieve the highest APY on HyperEVM</h1>
               </div>
               <VaultCard />
             </main>
